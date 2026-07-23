@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR" data-platform="mercadolivre">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel Multiplataforma de Precificação 2026</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button></div></nav>
+
+<main class="app">
+<header class="topbar"><div class="brand"><h1 id="pageTitle">Painel de Precificação — Mercado Livre</h1><p>Lucro, ROI, ACOS, estoque, preço ideal e cenários de publicidade em um único motor.</p></div><div class="top-actions"><div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀ Claro</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾ Escuro</button></div><button class="btn" id="printBtn">Imprimir diagnóstico</button><button class="btn" id="exportBtn">Exportar dados</button><button class="btn" id="importBtn">Importar dados</button><input id="importFile" type="file" accept="application/json" hidden><button class="btn" id="logoutBtn">Sair</button></div></header>
+
+<section class="grid-main">
+<aside class="panel left"><div class="panel-head"><h2>Dados do produto</h2><span class="status neutral" id="editStatus">Editando produto</span></div><div class="panel-body">
+<div class="product-row"><select id="productSelect"></select><button class="btn small" id="newBtn">Novo</button></div>
+<div class="fields">
+<div class="field full"><label>Nome do produto</label><input id="name"></div><div class="field"><label>Código (SKU)</label><input id="sku"></div><div class="field"><label>Categoria</label><select id="category"></select></div>
+<div class="field"><label>Preço de venda (R$)</label><input id="price" type="number" min="0" step=".01"></div><div class="field"><label>Desconto / cupom (%)</label><input id="discount" type="number" min="0" max="100" step=".01"></div>
+<div class="field"><label>Custo do produto (R$)</label><input id="cost" type="number" min="0" step=".01"><div class="help">Importe ou digite o custo real.</div></div><div class="field"><label>Embalagem / outros (R$)</label><input id="packaging" type="number" min="0" step=".01"></div><div class="field"><label>Frete do vendedor (R$)</label><input id="freight" type="number" min="0" step=".01"></div><div class="field"><label>Reserva devoluções (%)</label><input id="returns" type="number" min="0" max="100" step=".01"></div>
+</div>
+<div class="section-title">Taxas da plataforma</div><div class="fields">
+<div class="field full"><label>Regra de cobrança</label><select id="feeMode"><option value="manual">Manual — valores do anúncio/contrato</option><option value="classic">Clássico — comissão-base</option><option value="premium">Premium — comissão-base + 5 p.p.</option></select></div>
+<div class="field"><label>Comissão-base (%)</label><input id="commission" type="number" min="0" max="100" step=".01"></div><div class="field"><label>Tarifa fixa / unidade (R$)</label><input id="fixedFee" type="number" min="0" step=".01"></div><div class="field"><label>Taxa adicional (%)</label><input id="service" type="number" min="0" max="100" step=".01"></div><div class="field"><label>Imposto (%)</label><input id="tax" type="number" min="0" max="100" step=".01"></div><div class="field"><label>Base do imposto</label><select id="taxBase"><option value="gross">Preço bruto</option><option value="net">Após desconto</option></select></div><div class="field"><label>Custo logístico adicional (R$)</label><input id="unitFee" type="number" min="0" step=".01"></div></div>
+<div class="rulebox" id="platformRule"></div>
+<div class="section-title">Publicidade e objetivo</div><div class="fields"><div class="field"><label>Modo de Ads</label><select id="adsMode"><option value="roas">Informar ROAS</option><option value="cpa">Informar CPA</option><option value="acos">Informar ACOS</option></select></div><div class="field"><label id="adsValueLabel">ROAS atual (x)</label><input id="adsValue" type="number" min="0" step=".01"></div><div class="field"><label>Base do ROAS</label><select id="roasBase"><option value="gross">Preço bruto</option><option value="net">Após desconto</option></select></div><div class="field"><label>Margem desejada (%)</label><input id="targetMargin" type="number" step=".1"></div></div>
+<div class="form-actions"><button class="btn primary" id="saveBtn">Salvar produto</button><button class="btn" id="duplicateBtn">Duplicar</button><button class="btn danger" id="deleteBtn">Excluir</button></div>
+</div></aside>
+
+<div class="content">
+<div class="overview"><h2>Resumo executivo</h2><p>Valores atualizados em tempo real conforme produto, plataforma, taxas, Ads e volume.</p></div><section class="kpis" id="kpis"></section>
+<section class="panel sale-account"><h2>A conta de uma venda</h2><p class="help">Comece pela receita após o desconto e subtraia cada grupo de custos.</p><div class="sale-equation" id="saleEquation"></div><div class="sale-stack" id="saleStack"></div><div class="sale-legend" id="saleLegend"></div><p class="sale-caption" id="saleCaption"></p></section>
+<section class="panel"><div class="panel-head"><h2>Diagnóstico do produto</h2><span class="status neutral" id="mainStatus">Aguardando dados</span></div><div class="panel-body summary-grid"><div class="waterfall" id="waterfall"></div><div class="diag warnbox" id="diagnosis"></div></div></section>
+<section class="panel"><div class="panel-head"><h2>Simulação de compra, estoque e resultado mensal</h2><span class="status neutral">Planejamento financeiro</span></div><div class="panel-body business">
+<article class="sim-card"><h3>Compra e retorno do estoque</h3><p>Simule pelo capital disponível ou pela quantidade desejada.</p><div class="fields"><div class="field full"><label>Forma da compra</label><select id="purchaseMode"><option value="amount">Por valor em reais</option><option value="units">Por quantidade</option></select></div><div class="field" id="investmentField"><label>Capital disponível (R$)</label><input id="investment" type="number" min="0" step=".01"></div><div class="field hidden" id="quantityField"><label>Quantidade (un.)</label><input id="quantity" type="number" min="0" step="1"></div></div><div class="results" id="purchaseResults"></div></article>
+<article class="sim-card"><h3>Projeção mensal</h3><p>Separe vendas orgânicas e vendas atribuídas à publicidade.</p><div class="fields"><div class="field"><label>Vendas mensais</label><input id="monthlySales" type="number" min="0" step="1"></div><div class="field"><label>Vendas via Ads (%)</label><input id="adsShare" type="number" min="0" max="100" step="1"></div><div class="field full"><label>Custos fixos mensais (R$)</label><input id="monthlyFixed" type="number" min="0" step=".01"></div></div><div class="results" id="monthlyResults"></div></article>
+</div></section>
+<section class="panel"><div class="panel-head"><h2>Planilha de ROAS desejado e preço ideal</h2><span class="status neutral">Atualização instantânea</span></div><div class="panel-body"><div class="scenario-controls"><div class="field"><label>ROAS inicial</label><input id="roasStart" type="number" min=".1" step=".1" value="3"></div><div class="field"><label>ROAS final</label><input id="roasEnd" type="number" min=".1" step=".1" value="30"></div><div class="field"><label>Intervalo</label><input id="roasStep" type="number" min=".1" step=".1" value="2.5"></div><button class="btn brand" id="updateScenarios">Atualizar cenários</button></div><div class="chips"><button class="chip" data-roas="5">ROAS 5</button><button class="chip" data-roas="10">ROAS 10</button><button class="chip" data-roas="20">ROAS 20</button><button class="chip" data-roas="30">ROAS 30</button><button class="chip" id="exportRoas">Exportar planilha CSV</button></div><div class="table-wrap"><table><thead><tr><th>Cenário</th><th>CPA</th><th>ACOS</th><th>Lucro/venda</th><th>Margem</th><th>ROI produto</th><th>Preço ideal</th><th>Ajuste</th><th>ROAS mínimo</th><th>Diagnóstico</th></tr></thead><tbody id="scenarioBody"></tbody></table></div></div></section>
+<section class="panel catalog-panel"><div class="panel-head"><h2>Catálogo do inventário</h2><span class="status neutral" id="productCount"></span></div><div class="panel-body"><div class="catalog-tools"><div class="field"><label>Buscar produto ou SKU</label><input id="catalogSearch"></div><div class="field"><label>Filtrar categoria</label><select id="catalogCategory"></select></div></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Produto</th><th>SKU</th><th>Categoria</th><th>Custo</th><th>Preço</th><th>Lucro Ads</th><th>Margem</th><th>Ação</th></tr></thead><tbody id="catalogBody"></tbody></table></div></div></section>
+</div></section></main>
+
+<div id="loginModal" class="modal hidden">
+  <div class="modal-content">
+    <h2>Fazer login</h2>
+    <div class="fields">
+      <div class="field full"><label>Email</label><input id="loginEmail" type="email"></div>
+      <div class="field full"><label>Senha</label><input id="loginPassword" type="password"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" id="loginBtn">Entrar</button>
+      <button class="btn" id="toggleSignup">Criar conta</button>
+    </div>
+    <p id="loginError" class="error" style="color:var(--bad);margin-top:10px;"></p>
+  </div>
+</div>
+
+<script src="supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

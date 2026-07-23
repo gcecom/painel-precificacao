@@ -1,0 +1,27 @@
+{
+  "name": "painel-precificacao",
+  "version": "1.0.0",
+  "description": "Painel multiplataforma de precificação para Mercado Livre, Shopee, Magalu e Amazon",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "build": "echo 'No build step needed for this static site'",
+    "test": "echo 'Tests coming soon'"
+  },
+  "keywords": [
+    "precificacao",
+    "pricing",
+    "ecommerce",
+    "marketplace",
+    "mercado-livre",
+    "shopee",
+    "magalu",
+    "amazon"
+  ],
+  "author": "Seu Nome",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seu-usuario/painel-precificacao.git"
+  }
+}
