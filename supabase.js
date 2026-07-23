@@ -56,15 +56,18 @@ const supabaseClient = {
   // Produtos
   async getProducts(userId) {
     try {
-      const url = `${SUPABASE_URL}/rest/v1/products?user_id=eq.${userId}&order=created_at.desc`;
+      const url = `${SUPABASE_URL}/rest/v1/products?order=created_at.desc`;
       const response = await fetch(url, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         }
       });
-      if (!response.ok) return [];
-      return await response.json();
+      if (!response.ok) {
+        console.error('Erro ao carregar:', response.status);
+        return [];
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     } catch (e) {
       console.error('Erro ao carregar produtos:', e);
       return [];
