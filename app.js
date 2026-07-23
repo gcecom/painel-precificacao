@@ -1,7 +1,7 @@
 'use strict';
 
 const PLATFORMS={shopee:{name:'Shopee',brand:'#ee4d2d',ink:'#fff',accent:'#ee4d2d',commission:14,fixed:0,feeMode:'manual',tax:8},magalu:{name:'Magalu',brand:'#0086ff',ink:'#fff',accent:'#0086ff',commission:16,fixed:0,feeMode:'manual',tax:8},mercadolivre:{name:'Mercado Livre',brand:'#ffe600',ink:'#24324a',accent:'#3483fa',commission:12.5,fixed:0,feeMode:'classic',tax:8},amazon:{name:'Amazon',brand:'#131921',ink:'#fff',accent:'#ff9900',commission:15,fixed:0,feeMode:'manual',tax:8}};
-const THEME_STORAGE='painel_tema_2026';let platform='mercadolivre',selectedId='',products=[],currentUser=null;let scenarioRows=[];
+const THEME_STORAGE='painel_tema_2026';let platform='mercadolivre',selectedId='',products=[],currentUser=null;let scenarioRows=[];let autoSaveTimeout=null,isSaving=false;
 
 const money=v=>Number.isFinite(v)?new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v):'—';
 const pct=v=>Number.isFinite(v)?new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2}).format(v):'—';
@@ -53,7 +53,9 @@ function renderCatalog(){let q=$('catalogSearch').value.toLowerCase(),cat=$('cat
 
 function selectProduct(v){selectedId=v;$('productSelect').value=v;writeForm()}
 
-async function save(){let{p}=readForm();if(!p||!currentUser)return;try{$('saveBtn').classList.add('loading');if(p.id.startsWith('new-')){p.id=id();p.user_id=currentUser.id;await supabaseClient.createProduct(p)}else{await supabaseClient.updateProduct(p.id,p)}products=products.map(x=>x.id===p.id?p:x);renderSelectors();$('editStatus').textContent='Produto salvo ✓';setTimeout(()=>$('editStatus').textContent='Editando produto',1200)}catch(e){alert('Erro ao salvar: '+e.message)}finally{$('saveBtn').classList.remove('loading')}}
+async function save(){let{p}=readForm();if(!p||!currentUser)return;try{$('saveBtn').classList.add('loading');if(p.id.startsWith('new-')){p.id=id();p.user_id=currentUser.id;await supabaseClient.createProduct(p)}else{await supabaseClient.updateProduct(p.id,p)}products=products.map(x=>x.id===p.id?p:x);renderSelectors();$('editStatus').textContent='Produto salvo ✓';setTimeout(()=>$('editStatus').textContent='Editando produto',1200)}catch(e){console.error('Erro ao salvar:',e)}finally{$('saveBtn').classList.remove('loading')}}
+
+function autoSave(){if(autoSaveTimeout)clearTimeout(autoSaveTimeout);if(isSaving)return;$('editStatus').textContent='Salvando...';autoSaveTimeout=setTimeout(async()=>{isSaving=true;try{await save()}catch(e){console.error('Auto-save error:',e)}finally{isSaving=false}},1500)}
 
 function setTheme(theme){theme=theme==='dark'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem(THEME_STORAGE,theme)}catch{}let dark=theme==='dark';$('lightThemeBtn').classList.toggle('active',!dark);$('darkThemeBtn').classList.toggle('active',dark);$('lightThemeBtn').setAttribute('aria-pressed',String(!dark));$('darkThemeBtn').setAttribute('aria-pressed',String(dark))}
 
@@ -69,7 +71,7 @@ $('logoutBtn').onclick=async()=>{await supabaseClient.signOut();currentUser=null
 
 $('lightThemeBtn').onclick=()=>setTheme('light');$('darkThemeBtn').onclick=()=>setTheme('dark');setTheme(document.documentElement.dataset.theme);
 
-fieldIds.forEach(k=>{let e=$(k);if(e)e.addEventListener('input',()=>{readForm();syncLabels();renderAll()})});
+fieldIds.forEach(k=>{let e=$(k);if(e)e.addEventListener('input',()=>{readForm();syncLabels();renderAll();autoSave()})});
 
 $('productSelect').onchange=e=>selectProduct(e.target.value);
 $('saveBtn').onclick=save;
