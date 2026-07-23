@@ -63,7 +63,7 @@ async function loadProducts(){if(!currentUser)return;try{products=await supabase
 
 async function initAuth(){let user=await supabaseClient.getCurrentUser();if(user){currentUser=user;$('loginModal').classList.add('hidden');await loadProducts();$('logoutBtn').style.display='block'}else{$('loginModal').classList.remove('hidden');$('logoutBtn').style.display='none'}}
 
-$('loginBtn').onclick=async()=>{let email=$('loginEmail').value,pass=$('loginPassword').value;try{let result=await supabaseClient.signIn(email,pass);if(result.access_token){localStorage.setItem('supabase_token',result.access_token);currentUser=result.user;await initAuth()}}catch(e){$('loginError').textContent='Erro: '+e.message}};
+$('loginBtn').onclick=async()=>{let email=$('loginEmail').value,pass=$('loginPassword').value,errEl=$('loginError');errEl.style.display='none';errEl.textContent='';if(!email){errEl.textContent='⚠️  Por favor, digite seu email';errEl.style.display='block';return}if(!pass){errEl.textContent='⚠️  Por favor, digite sua senha';errEl.style.display='block';return}try{$('loginBtn').classList.add('loading');let result=await supabaseClient.signIn(email,pass);if(result.error){errEl.textContent='❌ '+result.error.message;errEl.style.display='block';return}if(result.access_token){localStorage.setItem('supabase_token',result.access_token);currentUser=result.user;await initAuth()}else{errEl.textContent='❌ Senha errada ou email não cadastrado';errEl.style.display='block'}}catch(e){let msg=e.message.toLowerCase();if(msg.includes('invalid')||msg.includes('incorrect'))errEl.textContent='❌ Senha errada! Verifique e tente novamente';else if(msg.includes('user')||msg.includes('not found'))errEl.textContent='❌ Email não encontrado. Crie uma conta primeiro';else errEl.textContent='❌ '+e.message;errEl.style.display='block'}finally{$('loginBtn').classList.remove('loading')}};
 
 $('logoutBtn').onclick=async()=>{await supabaseClient.signOut();currentUser=null;await initAuth()};
 
@@ -94,5 +94,12 @@ $('importFile').onchange=async e=>{try{let j=JSON.parse(await e.target.files[0].
 $('exportRoas').onclick=()=>{let rows=[['Cenário','CPA','ACOS %','Lucro por venda','Margem %','ROI produto %','Preço ideal','Ajuste no preço','ROAS mínimo'],...scenarioRows.map(x=>[x.roas,x.cpa,x.acos*100,x.profit,x.margin*100,x.roi*100,x.ideal,x.adjust,x.roasMin])];download(`cenarios-roas-${platform}.csv`,rows.map(r=>r.map(v=>`"${String(typeof v==='number'?(Number.isFinite(v)?v:''):v).replaceAll('"','""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8')};
 
 function download(name,data,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+// Toggle de senha
+let passwordToggle=$('passwordToggle');if(passwordToggle){passwordToggle.onclick=e=>{e.preventDefault();let input=$('loginPassword'),isPassword=input.type==='password';input.type=isPassword?'text':'password';let eye=passwordToggle.querySelector('.eye-icon'),eyeClosed=passwordToggle.querySelector('.eye-closed-icon');if(eye&&eyeClosed){eye.style.display=isPassword?'none':'block';eyeClosed.style.display=isPassword?'block':'none'}}}
+
+// Enter para fazer login
+$('loginPassword').onkeypress=e=>{if(e.key==='Enter')$('loginBtn').click()};
+$('loginEmail').onkeypress=e=>{if(e.key==='Enter')$('loginPassword').focus()};
 
 initAuth();

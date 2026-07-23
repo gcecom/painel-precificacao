@@ -41,17 +41,53 @@
 </div></section></main>
 
 <div id="loginModal" class="modal hidden">
-  <div class="modal-content">
-    <h2>Fazer login</h2>
-    <div class="fields">
-      <div class="field full"><label>Email</label><input id="loginEmail" type="email"></div>
-      <div class="field full"><label>Senha</label><input id="loginPassword" type="password"></div>
+  <div class="modal-content login-card">
+    <div class="login-header">
+      <div class="login-logo">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <g fill="currentColor">
+            <!-- Cursor arrow shape -->
+            <polygon points="32,16 88,40 52,52 64,104 48,96 40,72 16,56"/>
+          </g>
+        </svg>
+      </div>
+      <div class="login-branding">
+        <h1>Painel de Precificação</h1>
+        <p>GCEcommerce</p>
+      </div>
     </div>
-    <div class="form-actions">
-      <button class="btn primary" id="loginBtn">Entrar</button>
-      <button class="btn" id="toggleSignup">Criar conta</button>
+
+    <div class="login-form">
+      <div class="field full">
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="seu.email@example.com" autocomplete="email">
+      </div>
+
+      <div class="field full">
+        <label>Senha</label>
+        <div class="password-field">
+          <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="password-toggle" id="passwordToggle" aria-label="Mostrar/esconder senha">
+            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg class="eye-closed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="loginError" class="login-error" style="display:none;"></div>
+
+      <button class="btn primary btn-login" id="loginBtn">Entrar</button>
     </div>
-    <p id="loginError" class="error" style="color:var(--bad);margin-top:10px;"></p>
+
+    <div class="login-divider">ou</div>
+
+    <button class="btn btn-signup" id="toggleSignup">Criar nova conta</button>
   </div>
 </div>
 
