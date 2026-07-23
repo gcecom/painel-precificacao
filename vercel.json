@@ -1,13 +1,8 @@
 {
   "name": "painel-precificacao",
   "version": 2,
-  "public": false,
   "buildCommand": "echo 'Static site - no build needed'",
   "outputDirectory": ".",
-  "env": {
-    "REACT_APP_SUPABASE_URL": "@supabase_url",
-    "REACT_APP_SUPABASE_ANON_KEY": "@supabase_anon_key"
-  },
   "headers": [
     {
       "source": "/(.*)",
