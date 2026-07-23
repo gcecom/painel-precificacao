@@ -7,12 +7,12 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button></div></nav>
+<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button></div></nav>
 
 <main class="app">
 <header class="topbar"><div class="brand"><h1 id="pageTitle">Painel de Precificação — Mercado Livre</h1><p>Lucro, ROI, ACOS, estoque, preço ideal e cenários de publicidade em um único motor.</p></div><div class="top-actions"><div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀ Claro</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾ Escuro</button></div><button class="btn" id="printBtn">Imprimir diagnóstico</button><button class="btn" id="exportBtn">Exportar dados</button><button class="btn" id="importBtn">Importar dados</button><input id="importFile" type="file" accept="application/json" hidden><button class="btn" id="logoutBtn">Sair</button></div></header>
 
-<section class="grid-main">
+<section class="grid-main" id="pricingView">
 <aside class="panel left"><div class="panel-head"><h2>Dados do produto</h2><span class="status neutral" id="editStatus">Editando produto</span></div><div class="panel-body">
 <div class="product-row"><select id="productSelect"></select><button class="btn small" id="newBtn">Novo</button></div>
 <div class="fields">
@@ -38,7 +38,21 @@
 </div></section>
 <section class="panel"><div class="panel-head"><h2>Planilha de ROAS desejado e preço ideal</h2><span class="status neutral">Atualização instantânea</span></div><div class="panel-body"><div class="scenario-controls"><div class="field"><label>ROAS inicial</label><input id="roasStart" type="number" min=".1" step=".1" value="3"></div><div class="field"><label>ROAS final</label><input id="roasEnd" type="number" min=".1" step=".1" value="30"></div><div class="field"><label>Intervalo</label><input id="roasStep" type="number" min=".1" step=".1" value="2.5"></div><button class="btn brand" id="updateScenarios">Atualizar cenários</button></div><div class="chips"><button class="chip" data-roas="5">ROAS 5</button><button class="chip" data-roas="10">ROAS 10</button><button class="chip" data-roas="20">ROAS 20</button><button class="chip" data-roas="30">ROAS 30</button><button class="chip" id="exportRoas">Exportar planilha CSV</button></div><div class="table-wrap"><table><thead><tr><th>Cenário</th><th>CPA</th><th>ACOS</th><th>Lucro/venda</th><th>Margem</th><th>ROI produto</th><th>Preço ideal</th><th>Ajuste</th><th>ROAS mínimo</th><th>Diagnóstico</th></tr></thead><tbody id="scenarioBody"></tbody></table></div></div></section>
 <section class="panel catalog-panel"><div class="panel-head"><h2>Catálogo do inventário</h2><span class="status neutral" id="productCount"></span></div><div class="panel-body"><div class="catalog-tools"><div class="field"><label>Buscar produto ou SKU</label><input id="catalogSearch"></div><div class="field"><label>Filtrar categoria</label><select id="catalogCategory"></select></div></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Produto</th><th>SKU</th><th>Categoria</th><th>Custo</th><th>Preço</th><th>Lucro Ads</th><th>Margem</th><th>Ação</th></tr></thead><tbody id="catalogBody"></tbody></table></div></div></section>
-</div></section></main>
+</div></section>
+
+<section id="performanceView" class="content hidden">
+<div class="overview"><h2>Central de Performance</h2><p>Da impressão à venda, sem pontos cegos. Envie o relatório do anúncio (Ads) e o relatório do produto para cruzar métricas e receber diagnósticos.</p></div>
+<div class="perf-uploads">
+<article class="sim-card upload-card"><div class="upload-icon ads">A</div><h3>1. Relatório do Anúncio (Ads)</h3><p>Impressões, cliques, gasto, conversões, GMV, ROAS e ACOS.</p><button class="btn brand" id="adsFileBtn">Selecionar arquivo Ads</button><input id="adsFile" type="file" accept=".csv,.xlsx,.xls" hidden><div class="help" id="adsFileStatus">Aguardando arquivo (CSV ou XLSX)</div></article>
+<article class="sim-card upload-card"><div class="upload-icon prod">P</div><h3>2. Relatório do Produto</h3><p>Visitas, visualizações, carrinhos, pedidos, vendas e conversão.</p><button class="btn primary" id="prodFileBtn">Selecionar arquivo do Produto</button><input id="prodFile" type="file" accept=".csv,.xlsx,.xls" hidden><div class="help" id="prodFileStatus">Aguardando arquivo (CSV ou XLSX)</div></article>
+</div>
+<div class="overview"><h2 class="perf-subtitle">Métricas do Anúncio</h2></div>
+<section class="kpis" id="adsKpis"><article class="kpi"><div class="label">Aguardando relatório de Ads</div><div class="sub">Envie o arquivo para ver as métricas</div></article></section>
+<div class="overview"><h2 class="perf-subtitle">Métricas do Produto</h2></div>
+<section class="kpis" id="prodKpis"><article class="kpi"><div class="label">Aguardando relatório do produto</div><div class="sub">Envie o arquivo para ver as métricas</div></article></section>
+<section class="panel"><div class="panel-head"><h2>Diagnósticos</h2><span class="status neutral" id="perfStatus">Aguardando dados</span></div><div class="panel-body perf-diags" id="perfDiagnosis"><p class="help">Envie ao menos um arquivo para gerar diagnósticos automáticos (ex.: CTR baixo → melhorar o anúncio).</p></div></section>
+</section>
+</main>
 
 <div id="loginModal" class="modal hidden">
   <div class="modal-content login-card">
@@ -107,5 +121,7 @@
 
 <script src="supabase.js"></script>
 <script src="app.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="performance.js"></script>
 </body>
 </html>
