@@ -44,37 +44,26 @@
   <div class="modal-content login-card">
     <div class="login-container">
       <div class="login-logo">
-        <svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
-          <!-- Cursor 3D Pixelado - Logo GCEcommerce -->
-          <!-- Baseado na logo oficial da empresa -->
-
-          <!-- Sombra traseira (preto/cinza escuro) -->
-          <polygon points="25,20 75,35 75,110 35,95" fill="#1a2a3a" opacity="0.85"/>
-          <polygon points="25,20 35,30 35,95 25,85" fill="#0f1820" opacity="0.9"/>
-
-          <!-- Corpo principal (branco) -->
-          <polygon points="20,15 70,30 70,105 30,90" fill="#ffffff"/>
-
-          <!-- Borda/profundidade direita (cinza claro) -->
-          <polygon points="70,30 80,40 80,115 70,105" fill="#c0c4c8"/>
-
-          <!-- Ponta do cursor (preto) -->
-          <polygon points="20,15 30,25 35,18" fill="#000000"/>
-
-          <!-- Botões/cliques (pixelated) -->
-          <!-- Botão 1 -->
-          <rect x="50" y="50" width="12" height="12" fill="#000000"/>
-          <rect x="53" y="53" width="6" height="6" fill="#1a2a3a"/>
-
-          <!-- Botão 2 -->
-          <rect x="55" y="65" width="15" height="12" fill="#000000"/>
-          <rect x="58" y="68" width="9" height="6" fill="#1a2a3a"/>
-
-          <!-- Destaque de brilho -->
-          <polygon points="30,25 45,40 40,35 33,28" fill="#ffffff" opacity="0.7"/>
-
-          <!-- Detalhes de sombra na ponta -->
-          <polygon points="30,25 35,18 32,20" fill="#1a2a3a" opacity="0.6"/>
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+          <!-- Cursor pixelado 3D - Logo GCEcommerce -->
+          <g transform="rotate(-20 100 100)">
+            <!-- Extrusão 3D (camada preta deslocada) -->
+            <path d="M 30,15
+                     v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8
+                     h -44
+                     l 22,52 l -18,8 l -22,-52
+                     l -30,30
+                     z"
+                  fill="#000000" transform="translate(11,9)"/>
+            <!-- Face branca do cursor com contorno preto -->
+            <path d="M 30,15
+                     v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8
+                     h -44
+                     l 22,52 l -18,8 l -22,-52
+                     l -30,30
+                     z"
+                  fill="#ffffff" stroke="#000000" stroke-width="6" stroke-linejoin="round"/>
+          </g>
         </svg>
       </div>
 
