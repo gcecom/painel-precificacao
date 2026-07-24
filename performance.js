@@ -493,12 +493,31 @@ el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_
 el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimTable();renderSingleSale()}};
 el('perfProductSelect').onchange=()=>{if(simState){renderSimTable();renderSingleSale()}};
 
-// ---------- RESULTADO MENSAL POR MARKETPLACE ----------
+// ---------- RESULTADO MENSAL POR MARKETPLACE (Supabase, isolado por usuário) ----------
 function curPlatform(){try{return platform}catch(e){return'mercadolivre'}}
 function platformName(){try{return PLATFORMS[curPlatform()].name}catch(e){return''}}
-function monthlyKey(){return'painel_monthly_'+curPlatform()}
-function loadMonthly(){try{return JSON.parse(localStorage.getItem(monthlyKey())||'{}')}catch(e){return{}}}
-function saveMonthly(d){try{localStorage.setItem(monthlyKey(),JSON.stringify(d))}catch(e){}}
+function curUserId(){try{return currentUser&&currentUser.id}catch(e){return null}}
+
+let monthlyCache={},monthlyLabelCache='',monthlyLoadedFor=null,monthlySaveTimers={},monthlyLabelTimer=null;
+// performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyLoadedFor=null};
+
+// Busca as vendas do mês + o rótulo (ex.: "Janeiro 2026") do Supabase, só quando muda usuário/plataforma
+async function ensureMonthlyLoaded(){
+  const uid=curUserId(),plat=curPlatform();
+  if(!uid)return false;
+  const key=uid+'|'+plat;
+  if(monthlyLoadedFor===key)return true;
+  const[rows,meta]=await Promise.all([
+    supabaseClient.getMonthlySales(uid,plat),
+    supabaseClient.getMonthlyMeta(uid,plat)
+  ]);
+  monthlyCache={};
+  (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:r.units,price:r.price}});
+  monthlyLabelCache=(meta&&meta.label)||'';
+  monthlyLoadedFor=key;
+  return true;
+}
 
 // Custos por unidade de um produto no marketplace atual, ao preço informado
 function monthlyUnit(p,price){
@@ -511,24 +530,45 @@ function monthlyUnit(p,price){
 }
 
 function monthlyRowsData(){
-  const data=loadMonthly();
   return savedProducts().map(p=>{
-    const s=data[p.id]||{};
+    const s=monthlyCache[p.id]||{};
     const ch=(p.channels&&p.channels[curPlatform()])||{};
     const units=+s.units||0;
     const price=s.price!=null&&s.price!==''?+s.price:(ch.price||0);
     const u=monthlyUnit(p,price);
     const rev=units*price;
-    return{p,units,price,rev,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,profit:u.profit*units,profitU:u.profit,margin:price>0?u.profit/price:NaN};
+    return{p,units,price,rev,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,profit:u.profit*units,margin:price>0?u.profit/price:NaN};
   });
 }
 
-function renderMonthly(){
-  el('monthlyTitle').textContent='Resultado mensal — '+platformName();
-  const label=localStorage.getItem('painel_monthly_label')||'';
-  if(el('monthlyLabel').value!==label)el('monthlyLabel').value=label;
-  const list=savedProducts();
+// Salva com debounce (800ms de inatividade), como o auto-save da aba Precificação
+function scheduleMonthlySave(productId){
+  clearTimeout(monthlySaveTimers[productId]);
+  monthlySaveTimers[productId]=setTimeout(async()=>{
+    const uid=curUserId();if(!uid)return;
+    const s=monthlyCache[productId]||{units:0,price:0};
+    try{await supabaseClient.upsertMonthlySale({user_id:uid,platform:curPlatform(),product_id:productId,units:+s.units||0,price:+s.price||0})}
+    catch(e){console.error('Erro ao salvar resultado mensal:',e)}
+  },800);
+}
+
+function scheduleMonthlyLabelSave(){
+  clearTimeout(monthlyLabelTimer);
+  monthlyLabelTimer=setTimeout(async()=>{
+    const uid=curUserId();if(!uid)return;
+    try{await supabaseClient.upsertMonthlyMeta({user_id:uid,platform:curPlatform(),label:monthlyLabelCache})}
+    catch(e){console.error('Erro ao salvar rótulo do mês:',e)}
+  },800);
+}
+
+async function renderMonthly(){
   const tb=el('monthlyTable');
+  el('monthlyTitle').textContent='Resultado mensal — '+platformName();
+  if(!curUserId()){tb.innerHTML='<tbody><tr><td style="padding:16px">Faça login para lançar o resultado mensal.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
+  tb.innerHTML='<tbody><tr><td style="padding:16px">Carregando...</td></tr></tbody>';
+  await ensureMonthlyLoaded();
+  if(el('monthlyLabel').value!==monthlyLabelCache)el('monthlyLabel').value=monthlyLabelCache;
+  const list=savedProducts();
   if(!list.length){tb.innerHTML='<tbody><tr><td style="padding:16px">Cadastre produtos na aba <b>Precificação</b> para lançar as vendas do mês.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
   const head='<thead><tr><th>Produto</th><th>Custo compra</th><th>Unid. vendidas</th><th>Preço médio</th><th>Receita bruta</th><th>Comissão + tarifas</th><th>Frete / outros</th><th>Imposto</th><th>Custo produtos</th><th>Lucro líquido</th><th>% margem</th></tr></thead>';
   const rows=monthlyRowsData();
@@ -551,9 +591,11 @@ function renderMonthly(){
   tb.innerHTML=head+'<tbody>'+body+'</tbody><tfoot>'+monthlyFootHTML(rows)+'</tfoot>';
   tb.querySelectorAll('input[data-mo]').forEach(inp=>{
     inp.addEventListener('input',()=>{
-      const d=loadMonthly(),id=inp.dataset.id;
-      d[id]=d[id]||{};d[id][inp.dataset.mo]=inp.value===''?'':+inp.value;saveMonthly(d);
+      const id=inp.dataset.id;
+      monthlyCache[id]=monthlyCache[id]||{};
+      monthlyCache[id][inp.dataset.mo]=inp.value===''?0:+inp.value;
       updateMonthly();
+      scheduleMonthlySave(id);
     });
   });
   renderMonthlyKpis(rows);
@@ -601,8 +643,13 @@ function showView(v){
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
 el('tabMonthly').onclick=()=>showView('monthly');
-el('monthlyLabel').oninput=()=>{try{localStorage.setItem('painel_monthly_label',el('monthlyLabel').value)}catch(e){}};
-el('monthlyClear').onclick=()=>{if(confirm('Zerar as vendas lançadas deste marketplace?')){saveMonthly({});renderMonthly()}};
+el('monthlyLabel').oninput=()=>{monthlyLabelCache=el('monthlyLabel').value;scheduleMonthlyLabelSave()};
+el('monthlyClear').onclick=async()=>{
+  const uid=curUserId();if(!uid)return;
+  if(!confirm('Zerar as vendas lançadas deste marketplace?'))return;
+  try{await supabaseClient.deleteMonthlySales(uid,curPlatform());monthlyCache={};monthlyLoadedFor=null;await renderMonthly()}
+  catch(e){alert('Erro ao zerar: '+e.message)}
+};
 el('monthlyPrint').onclick=()=>window.print();
 // Trocar de plataforma recalcula a venda e o fechamento mensal (sem sobrescrever o handler do app.js)
 document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{
