@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Multiplataforma de Precificação 2026</title>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 <nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button></div></nav>
@@ -47,6 +47,7 @@
 <article class="sim-card upload-card"><div class="upload-icon prod">P</div><h3>2. Relatório do Produto</h3><p>Visitas, visualizações, carrinhos, pedidos, vendas e conversão.</p><button class="btn primary" id="prodFileBtn">Selecionar arquivo do Produto</button><input id="prodFile" type="file" accept=".csv,.xlsx,.xls" hidden><div class="help" id="prodFileStatus">Aguardando arquivo (CSV ou XLSX)</div></article>
 </div>
 <section class="panel perf-id-panel" id="perfMetaPanel" style="display:none"><div class="panel-body"><div class="perf-meta" id="perfMeta"></div></div></section>
+<section class="panel sale-account" id="singleSalePanel" style="display:none"><h2>Simulação de uma venda</h2><p class="help">A conta de uma única venda do produto: comece pela receita e subtraia cada grupo de custos. Ajuste os valores no Simulador de cenários mais abaixo.</p><section class="kpis" id="singleSaleKpis" style="margin:14px 0"></section><div class="sale-equation" id="ssEquation"></div><div class="sale-stack" id="ssStack"></div><p class="sale-caption" id="ssCaption"></p></section>
 <div class="overview"><h2 class="perf-subtitle">Métricas do Anúncio</h2></div>
 <section class="kpis" id="adsKpis"><article class="kpi"><div class="label">Aguardando relatório de Ads</div><div class="sub">Envie o arquivo para ver as métricas</div></article></section>
 <div class="overview"><h2 class="perf-subtitle">Métricas do Produto</h2></div>
@@ -121,9 +122,9 @@
   </div>
 </div>
 
-<script src="supabase.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="supabase.js?v=11"></script>
+<script src="app.js?v=11"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=10"></script>
+<script src="performance.js?v=11"></script>
 </body>
 </html>

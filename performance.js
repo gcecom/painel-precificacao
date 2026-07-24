@@ -216,7 +216,10 @@ const SIM_FIELDS=[
   {k:'convRate',label:'Taxa de conversão (%)',step:'.01',hint:'Vendas ÷ cliques'},
   {k:'unitPrice',label:'Preço de venda unitário (R$)',step:'.01',hint:'Valor de cada venda'},
   {k:'spend',label:'Gasto em Ads (R$)',step:'.01',hint:'Investimento em anúncios'},
-  {k:'cost',label:'Custo do produto (R$)',step:'.01',hint:'Custo de compra por unidade (opcional)'}
+  {k:'cost',label:'Custo do produto (R$)',step:'.01',hint:'Custo de compra por unidade'},
+  {k:'commission',label:'Comissão da plataforma (%)',step:'.01',hint:'Comissão sobre a venda'},
+  {k:'tax',label:'Imposto (%)',step:'.01',hint:'Imposto sobre a venda'},
+  {k:'others',label:'Outros custos / venda (R$)',step:'.01',hint:'Embalagem, frete, etc.'}
 ];
 
 function buildSimBase(){
@@ -227,7 +230,7 @@ function buildSimBase(){
   if(unitPrice<=0&&p&&p.orders>0)unitPrice=p.revenue/p.orders;
   const ctr=impressions>0?clicks/impressions*100:0;
   const convRate=clicks>0?conversions/clicks*100:0;
-  return{impressions,ctr:+ctr.toFixed(4),convRate:+convRate.toFixed(4),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0};
+  return{impressions,ctr:+ctr.toFixed(4),convRate:+convRate.toFixed(4),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0,commission:14,tax:0,others:0};
 }
 
 function simCompute(s){
@@ -238,9 +241,37 @@ function simCompute(s){
   const acos=revenue>0?s.spend/revenue:NaN;
   const cpc=clicks>0?s.spend/clicks:NaN;
   const cpa=conversions>0?s.spend/conversions:NaN;
-  const profit=revenue-s.spend-s.cost*conversions;
+  const fees=revenue*(s.commission||0)/100;
+  const taxes=revenue*(s.tax||0)/100;
+  const othersTotal=(s.others||0)*conversions;
+  const profit=revenue-s.spend-s.cost*conversions-fees-taxes-othersTotal;
   const margin=revenue>0?profit/revenue:NaN;
   return{clicks,conversions,revenue,roas,acos,cpc,cpa,profit,margin};
+}
+
+// Conta visual de UMA venda (por unidade), estilo painel de precificação
+function renderSingleSale(){
+  if(!simState){el('singleSalePanel').style.display='none';return}
+  el('singleSalePanel').style.display='';
+  const s=simState,c=simCompute(s);
+  const price=s.unitPrice,prod=s.cost,
+    commissionVal=price*(s.commission||0)/100,taxVal=price*(s.tax||0)/100,
+    taxasImpostos=commissionVal+taxVal,others=s.others||0,
+    ads=Number.isFinite(c.cpa)?c.cpa:0,
+    lucro=price-prod-taxasImpostos-others-ads,
+    margin=price>0?lucro/price:NaN,roi=prod>0?lucro/prod:NaN;
+  el('singleSaleKpis').innerHTML=
+    kpi('Receita da venda',fmtMoney(price),'Valor de venda por unidade')+
+    kpi(lucro>=0?'Lucro por venda':'Prejuízo por venda',fmtMoney(lucro),lucro>=0?'Resultado positivo':'Está no prejuízo')+
+    kpi('Margem',fmtPct(margin),'Lucro ÷ receita')+
+    kpi('ROI do produto',fmtPct(roi),'Lucro ÷ custo')+
+    kpi('Anúncio por venda',fmtMoney(ads),'CPA = gasto ÷ vendas');
+  const steps=[['Receita da venda',price,''],['Produto',prod,'−'],['Taxas + impostos',taxasImpostos,'−'],['Outros custos',others,'−'],['Anúncio por venda',ads,'−'],[lucro>=0?'Lucro por venda':'Prejuízo por venda',Math.abs(lucro),'=']];
+  el('ssEquation').innerHTML=steps.map((x,i)=>`${i?`<span class="operator">${x[2]}</span>`:''}<div class="sale-step ${i===steps.length-1?(lucro>=0?'profit':'loss'):''}"><small>${x[0]}</small><b>${fmtMoney(x[1])}</b></div>`).join('');
+  const segs=[['Produto',prod,'#55677f'],['Comissão + impostos',taxasImpostos,'#7656a8'],['Outros',others,'#8c7355'],['Anúncios',ads,'#d97706'],[lucro>=0?'Lucro':'Prejuízo',Math.abs(lucro),lucro>=0?'#178a4b':'#c52c2c']];
+  const total=segs.reduce((a,b)=>a+b[1],0)||1;
+  el('ssStack').innerHTML=segs.filter(x=>x[1]>0).map(x=>`<div class="sale-segment" title="${x[0]}: ${fmtMoney(x[1])}" style="width:${x[1]/total*100}%;background:${x[2]}"><span>${x[0]}</span><b>${fmtMoney(x[1])}</b></div>`).join('');
+  el('ssCaption').textContent=`Com preço de ${fmtMoney(price)}, cada venda ${lucro>=0?'lucra':'perde'} ${fmtMoney(Math.abs(lucro))} (margem ${fmtPct(margin)}).`;
 }
 
 function renderSimInputs(){
@@ -276,6 +307,7 @@ function renderSimOutputs(){
     simResult('CPA',cur.cpa,base.cpa,fmtMoney,false)+
     simResult('Lucro estimado',cur.profit,base.profit,fmtMoney,true)+
     simResult('Margem',cur.margin,base.margin,fmtPct,true);
+  renderSingleSale();
 }
 
 function buildSimulator(){
@@ -283,7 +315,7 @@ function buildSimulator(){
   el('simPanel').style.display='';
   simBase=buildSimBase();
   simState=Object.assign({},simBase);
-  renderSimInputs();renderSimOutputs();
+  renderSimInputs();renderSimOutputs();renderSingleSale();
 }
 
 function diagnostics(){
