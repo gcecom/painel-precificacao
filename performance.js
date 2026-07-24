@@ -13,7 +13,50 @@ const EXCLUDE=['taxa','rate','ctr','roas','acos','medio','media','por conversao'
 const ADS_MAP={impressions:['impress'],clicks:['clique','click'],spend:['despesa','gasto','investimento','custo'],conversions:['convers','pedidos','encomendas'],revenue:['gmv','receita','vendas']};
 const PROD_MAP={impressions:['impress'],clicks:['clique','click'],visits:['visitant','visitas','acessos'],pageviews:['visualizac'],carts:['carrinho'],orders:['pedidos','encomendas','unidades'],revenue:['vendas (brl)','gmv','vendas','receita','faturamento']};
 
-let adsData=null,prodData=null;
+let adsData=null,prodData=null,adsMeta={},prodMeta={},simBase=null,simState=null;
+
+const META_WANT={
+  produto:['nome do produto / anuncio','nome do produto/anuncio','nome do produto','produto'],
+  id:['id do produto','id do item','id do anuncio'],
+  campanha:['metodo de lance','nome da campanha','campanha','tipo de campanha'],
+  loja:['nome da loja','loja'],
+  idLoja:['id da loja'],
+  periodo:['periodo'],
+  data:['data de criacao do relatorio']
+};
+
+// Extrai identificação: pares rótulo/valor (Ads) e colunas Produto/ID (produto)
+function extractMeta(sheets,map){
+  const meta={};
+  for(const rows of sheets){
+    for(const r of rows){
+      if(!r)continue;
+      const cells=r.map(c=>String(c).trim());
+      const nn=cells.map(norm);
+      for(const key in META_WANT){
+        if(meta[key])continue;
+        const i=nn.findIndex(c=>META_WANT[key].some(k=>c===k||c.startsWith(k+' ')||c===k.replace(/ /g,'')));
+        if(i>=0){
+          const val=cells.slice(i+1).find(c=>c!==''&&norm(c)!==nn[i]);
+          if(val)meta[key]=val;
+        }
+      }
+    }
+    // Colunas Produto / ID (relatório do produto)
+    for(const sec of splitSections(rows,['produto','id do item','impress'])){
+      const pi=sec.header.findIndex(h=>h.includes('produto')&&!h.includes('id'));
+      const ii=sec.header.findIndex(h=>h.includes('id do item')||h.includes('id do produto'));
+      const row=sec.data.find(r=>r&&r.some(c=>String(c).trim()!==''));
+      if(row){
+        if(!meta.produto&&pi>=0&&String(row[pi]||'').trim())meta.produto=String(row[pi]).trim();
+        if(!meta.id&&ii>=0&&String(row[ii]||'').trim())meta.id=String(row[ii]).trim();
+      }
+    }
+  }
+  return meta;
+}
+
+function mergedMeta(){return Object.assign({},prodMeta,adsMeta)}
 
 function parseCSVText(text){
   const counts={';':(text.match(/;/g)||[]).length,',':(text.match(/,/g)||[]).length,'\t':(text.match(/\t/g)||[]).length};
@@ -105,20 +148,37 @@ function extract(sheets,map){
 }
 
 const kpi=(label,value,sub)=>`<article class="kpi"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub||''}</div></article>`;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function renderMeta(){
+  const m=mergedMeta();
+  const has=Object.keys(m).length>0;
+  el('perfMetaPanel').style.display=has?'':'none';
+  if(!has)return;
+  const items=[];
+  if(m.produto)items.push(['Produto',m.produto]);
+  if(m.id)items.push(['ID do produto / anúncio',m.id]);
+  if(m.campanha)items.push(['Campanha / lance',m.campanha]);
+  if(m.loja)items.push(['Loja',m.loja+(m.idLoja?' · '+m.idLoja:'')]);
+  if(m.periodo)items.push(['Período',m.periodo]);
+  el('perfMeta').innerHTML=items.map(([k,v])=>`<div class="meta-item"><span class="meta-label">${esc(k)}</span><b class="meta-value">${esc(v)}</b></div>`).join('');
+}
 
 function renderAds(){
   if(!adsData)return;
   const a=adsData,ctr=a.impressions>0?a.clicks/a.impressions:NaN,cvr=a.clicks>0?a.conversions/a.clicks:NaN,
     roas=a.spend>0?a.revenue/a.spend:NaN,acos=a.revenue>0?a.spend/a.revenue:NaN,
-    cpc=a.clicks>0?a.spend/a.clicks:NaN,cpa=a.conversions>0?a.spend/a.conversions:NaN;
+    cpc=a.clicks>0?a.spend/a.clicks:NaN,cpa=a.conversions>0?a.spend/a.conversions:NaN,
+    unit=a.conversions>0?a.revenue/a.conversions:NaN;
   el('adsKpis').innerHTML=
     kpi('Impressões',fmtInt(a.impressions),'')+
     kpi('Cliques',fmtInt(a.clicks),'')+
     kpi('CTR',fmtPct(ctr),'Cliques ÷ impressões')+
     kpi('Gasto em Ads',fmtMoney(a.spend),'')+
-    kpi('Conversões',fmtInt(a.conversions),'')+
+    kpi('Conversões (vendas)',fmtInt(a.conversions),'')+
     kpi('Conversão do anúncio',fmtPct(cvr),'Conversões ÷ cliques')+
     kpi('GMV (receita Ads)',fmtMoney(a.revenue),'')+
+    kpi('Valor de venda por unidade',fmtMoney(unit),'GMV ÷ conversões')+
     kpi('ROAS',Number.isFinite(roas)?roas.toFixed(2)+'x':'—','Receita ÷ gasto')+
     kpi('ACOS',fmtPct(acos),'Gasto ÷ receita')+
     kpi('CPC / CPA',`${fmtMoney(cpc)} · ${fmtMoney(cpa)}`,'Custo por clique · por conversão');
@@ -141,7 +201,84 @@ function renderProd(){
     kpi('Conversão do produto',fmtPct(conv),'Pedidos ÷ visitas')+
     kpi('Carrinho → pedido',fmtPct(checkout),'Fechamento do carrinho')+
     kpi('Vendas',fmtMoney(p.revenue),'')+
-    kpi('Ticket médio',fmtMoney(ticket),'Vendas ÷ pedidos');
+    kpi('Valor de venda por unidade (ticket)',fmtMoney(ticket),'Vendas ÷ pedidos');
+}
+
+// ---------- SIMULADOR DE CENÁRIOS ----------
+const SIM_FIELDS=[
+  {k:'impressions',label:'Impressões',step:'1',hint:'Quantas vezes o anúncio apareceu'},
+  {k:'ctr',label:'CTR (%)',step:'.01',hint:'Cliques ÷ impressões'},
+  {k:'convRate',label:'Taxa de conversão (%)',step:'.01',hint:'Vendas ÷ cliques'},
+  {k:'unitPrice',label:'Preço de venda unitário (R$)',step:'.01',hint:'Valor de cada venda'},
+  {k:'spend',label:'Gasto em Ads (R$)',step:'.01',hint:'Investimento em anúncios'},
+  {k:'cost',label:'Custo do produto (R$)',step:'.01',hint:'Custo de compra por unidade (opcional)'}
+];
+
+function buildSimBase(){
+  const a=adsData,p=prodData;
+  let impressions=0,clicks=0,spend=0,conversions=0,revenue=0,unitPrice=0;
+  if(a){impressions=a.impressions;clicks=a.clicks;spend=a.spend;conversions=a.conversions;revenue=a.revenue}
+  if(unitPrice<=0&&a&&a.conversions>0)unitPrice=a.revenue/a.conversions;
+  if(unitPrice<=0&&p&&p.orders>0)unitPrice=p.revenue/p.orders;
+  const ctr=impressions>0?clicks/impressions*100:0;
+  const convRate=clicks>0?conversions/clicks*100:0;
+  return{impressions,ctr:+ctr.toFixed(2),convRate:+convRate.toFixed(2),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0};
+}
+
+function simCompute(s){
+  const clicks=s.impressions*s.ctr/100;
+  const conversions=clicks*s.convRate/100;
+  const revenue=conversions*s.unitPrice;
+  const roas=s.spend>0?revenue/s.spend:NaN;
+  const acos=revenue>0?s.spend/revenue:NaN;
+  const cpc=clicks>0?s.spend/clicks:NaN;
+  const cpa=conversions>0?s.spend/conversions:NaN;
+  const profit=revenue-s.spend-s.cost*conversions;
+  const margin=revenue>0?profit/revenue:NaN;
+  return{clicks,conversions,revenue,roas,acos,cpc,cpa,profit,margin};
+}
+
+function renderSimInputs(){
+  el('simInputs').innerHTML=SIM_FIELDS.map(f=>`<div class="field"><label>${f.label}</label><input type="number" min="0" step="${f.step}" data-sim="${f.k}" value="${simState[f.k]}"><div class="help">${f.hint}</div></div>`).join('');
+  el('simInputs').querySelectorAll('input[data-sim]').forEach(inp=>{
+    inp.addEventListener('input',()=>{simState[inp.dataset.sim]=Number(inp.value)||0;renderSimOutputs()});
+  });
+}
+
+const simResult=(label,val,base,fmt,goodUp)=>{
+  let delta='';
+  if(base!==undefined&&Number.isFinite(val)&&Number.isFinite(base)){
+    const diff=val-base;
+    if(Math.abs(diff)>1e-9){
+      const up=diff>0,good=goodUp===undefined?null:(up===goodUp);
+      const cls=good===null?'':(good?'pos':'neg');
+      delta=`<span class="sim-delta ${cls}">${up?'▲':'▼'} ${fmt(Math.abs(diff))}</span>`;
+    }
+  }
+  return`<div class="result"><span>${label}</span><b>${Number.isFinite(val)?fmt(val):'—'}</b>${delta}</div>`;
+};
+
+function renderSimOutputs(){
+  const cur=simCompute(simState),base=simCompute(simBase);
+  const roasFmt=v=>v.toFixed(2)+'x';
+  el('simOutputs').innerHTML=
+    simResult('Cliques',cur.clicks,base.clicks,fmtInt,true)+
+    simResult('Vendas (conversões)',cur.conversions,base.conversions,fmtInt,true)+
+    simResult('Receita (GMV)',cur.revenue,base.revenue,fmtMoney,true)+
+    simResult('ROAS',cur.roas,base.roas,roasFmt,true)+
+    simResult('ACOS',cur.acos,base.acos,fmtPct,false)+
+    simResult('CPC',cur.cpc,base.cpc,fmtMoney,false)+
+    simResult('CPA',cur.cpa,base.cpa,fmtMoney,false)+
+    simResult('Lucro estimado',cur.profit,base.profit,fmtMoney,true)+
+    simResult('Margem',cur.margin,base.margin,fmtPct,true);
+}
+
+function buildSimulator(){
+  if(!adsData&&!prodData){el('simPanel').style.display='none';return}
+  el('simPanel').style.display='';
+  simBase=buildSimBase();
+  simState=Object.assign({},simBase);
+  renderSimInputs();renderSimOutputs();
 }
 
 function diagnostics(){
@@ -213,7 +350,7 @@ function renderDiagnostics(){
   el('perfStatus').textContent=worst==='bad'?'Ação necessária':worst==='warn'?'Pontos de atenção':'Tudo saudável';
 }
 
-async function handleFile(input,statusEl,map,assign){
+async function handleFile(input,statusEl,map,assign,which){
   const file=input.files[0];if(!file)return;
   statusEl.textContent='Lendo '+file.name+'...';
   try{
@@ -221,16 +358,19 @@ async function handleFile(input,statusEl,map,assign){
     const data=extract(sheets,map);
     if(data._missing.length===Object.keys(map).length)throw new Error('Nenhuma coluna reconhecida. Confira se é o relatório correto.');
     assign(data);
+    const meta=extractMeta(sheets,map);
+    if(which==='ads')adsMeta=meta;else prodMeta=meta;
     statusEl.innerHTML=`<span class="file-ok">✓ ${file.name}</span> — dados carregados`;
-    renderAds();renderProd();renderDiagnostics();
+    renderMeta();renderAds();renderProd();buildSimulator();renderDiagnostics();
   }catch(e){statusEl.innerHTML=`<span style="color:var(--bad);font-weight:800">✗ ${e.message}</span>`}
   input.value='';
 }
 
 el('adsFileBtn').onclick=()=>el('adsFile').click();
 el('prodFileBtn').onclick=()=>el('prodFile').click();
-el('adsFile').onchange=()=>handleFile(el('adsFile'),el('adsFileStatus'),ADS_MAP,d=>adsData=d);
-el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_MAP,d=>prodData=d);
+el('adsFile').onchange=()=>handleFile(el('adsFile'),el('adsFileStatus'),ADS_MAP,d=>adsData=d,'ads');
+el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_MAP,d=>prodData=d,'prod');
+el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimInputs();renderSimOutputs()}};
 
 function showView(v){
   el('pricingView').classList.toggle('hidden',v!=='pricing');
