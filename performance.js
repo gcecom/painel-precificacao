@@ -493,15 +493,120 @@ el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_
 el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimTable();renderSingleSale()}};
 el('perfProductSelect').onchange=()=>{if(simState){renderSimTable();renderSingleSale()}};
 
+// ---------- RESULTADO MENSAL POR MARKETPLACE ----------
+function curPlatform(){try{return platform}catch(e){return'mercadolivre'}}
+function platformName(){try{return PLATFORMS[curPlatform()].name}catch(e){return''}}
+function monthlyKey(){return'painel_monthly_'+curPlatform()}
+function loadMonthly(){try{return JSON.parse(localStorage.getItem(monthlyKey())||'{}')}catch(e){return{}}}
+function saveMonthly(d){try{localStorage.setItem(monthlyKey(),JSON.stringify(d))}catch(e){}}
+
+// Custos por unidade de um produto no marketplace atual, ao preço informado
+function monthlyUnit(p,price){
+  const ch=(p.channels&&p.channels[curPlatform()])||(typeof channelDefaults==='function'?channelDefaults(curPlatform()):{});
+  if(typeof calcAt==='function'){
+    const r=calcAt(p,ch,price);
+    return{comm:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:p.cost||0,profit:r.beforeAds,gross:r.gross};
+  }
+  return{comm:0,frete:0,tax:0,cost:p.cost||0,profit:price-(p.cost||0),gross:price};
+}
+
+function monthlyRowsData(){
+  const data=loadMonthly();
+  return savedProducts().map(p=>{
+    const s=data[p.id]||{};
+    const ch=(p.channels&&p.channels[curPlatform()])||{};
+    const units=+s.units||0;
+    const price=s.price!=null&&s.price!==''?+s.price:(ch.price||0);
+    const u=monthlyUnit(p,price);
+    const rev=units*price;
+    return{p,units,price,rev,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,profit:u.profit*units,profitU:u.profit,margin:price>0?u.profit/price:NaN};
+  });
+}
+
+function renderMonthly(){
+  el('monthlyTitle').textContent='Resultado mensal — '+platformName();
+  const label=localStorage.getItem('painel_monthly_label')||'';
+  if(el('monthlyLabel').value!==label)el('monthlyLabel').value=label;
+  const list=savedProducts();
+  const tb=el('monthlyTable');
+  if(!list.length){tb.innerHTML='<tbody><tr><td style="padding:16px">Cadastre produtos na aba <b>Precificação</b> para lançar as vendas do mês.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
+  const head='<thead><tr><th>Produto</th><th>Custo compra</th><th>Unid. vendidas</th><th>Preço médio</th><th>Receita bruta</th><th>Comissão + tarifas</th><th>Frete / outros</th><th>Imposto</th><th>Custo produtos</th><th>Lucro líquido</th><th>% margem</th></tr></thead>';
+  const rows=monthlyRowsData();
+  let body='';
+  for(const r of rows){
+    body+=`<tr data-mid="${r.p.id}">
+      <td class="mo-name">${esc(r.p.name)}</td>
+      <td>${fmtMoney(r.p.cost||0)}</td>
+      <td><input type="number" min="0" step="1" data-mo="units" data-id="${r.p.id}" value="${r.units||''}" placeholder="0"></td>
+      <td><input type="number" min="0" step=".01" data-mo="price" data-id="${r.p.id}" value="${r.price||''}" placeholder="0,00"></td>
+      <td data-c="rev">${fmtMoney(r.rev)}</td>
+      <td data-c="comm">${fmtMoney(r.comm)}</td>
+      <td data-c="frete">${fmtMoney(r.frete)}</td>
+      <td data-c="tax">${fmtMoney(r.tax)}</td>
+      <td data-c="cost">${fmtMoney(r.cost)}</td>
+      <td data-c="profit" class="${r.profit>=0?'pos':'neg'}">${fmtMoney(r.profit)}</td>
+      <td data-c="margin">${fmtPct(r.margin)}</td>
+    </tr>`;
+  }
+  tb.innerHTML=head+'<tbody>'+body+'</tbody><tfoot>'+monthlyFootHTML(rows)+'</tfoot>';
+  tb.querySelectorAll('input[data-mo]').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const d=loadMonthly(),id=inp.dataset.id;
+      d[id]=d[id]||{};d[id][inp.dataset.mo]=inp.value===''?'':+inp.value;saveMonthly(d);
+      updateMonthly();
+    });
+  });
+  renderMonthlyKpis(rows);
+}
+
+function monthlyFootHTML(rows){
+  const t=rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,comm:a.comm+r.comm,frete:a.frete+r.frete,tax:a.tax+r.tax,cost:a.cost+r.cost,profit:a.profit+r.profit}),{units:0,rev:0,comm:0,frete:0,tax:0,cost:0,profit:0});
+  const margin=t.rev>0?t.profit/t.rev:NaN;
+  return`<tr class="mo-total"><td>TOTAL</td><td></td><td data-t="units">${fmtInt(t.units)}</td><td></td><td data-t="rev">${fmtMoney(t.rev)}</td><td data-t="comm">${fmtMoney(t.comm)}</td><td data-t="frete">${fmtMoney(t.frete)}</td><td data-t="tax">${fmtMoney(t.tax)}</td><td data-t="cost">${fmtMoney(t.cost)}</td><td data-t="profit" class="${t.profit>=0?'pos':'neg'}">${fmtMoney(t.profit)}</td><td data-t="margin">${fmtPct(margin)}</td></tr>`;
+}
+
+function updateMonthly(){
+  const tb=el('monthlyTable'),rows=monthlyRowsData();
+  for(const r of rows){
+    const tr=tb.querySelector(`tr[data-mid="${r.p.id}"]`);if(!tr)return;
+    const set=(c,v)=>{const td=tr.querySelector(`td[data-c="${c}"]`);if(td)td.textContent=v};
+    set('rev',fmtMoney(r.rev));set('comm',fmtMoney(r.comm));set('frete',fmtMoney(r.frete));set('tax',fmtMoney(r.tax));set('cost',fmtMoney(r.cost));
+    const pt=tr.querySelector('td[data-c="profit"]');if(pt){pt.textContent=fmtMoney(r.profit);pt.className=r.profit>=0?'pos':'neg'}
+    set('margin',fmtPct(r.margin));
+  }
+  const foot=tb.querySelector('tfoot');if(foot)foot.innerHTML=monthlyFootHTML(rows);
+  renderMonthlyKpis(rows);
+}
+
+function renderMonthlyKpis(rows){
+  const t=rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,profit:a.profit+r.profit}),{units:0,rev:0,profit:0});
+  const sku=rows.filter(r=>r.units>0).length,margin=t.rev>0?t.profit/t.rev:NaN;
+  el('monthlyKpis').innerHTML=
+    kpi('Faturamento do mês',fmtMoney(t.rev),platformName())+
+    kpi('Lucro líquido do mês',fmtMoney(t.profit),t.profit>=0?'Resultado positivo':'Prejuízo')+
+    kpi('Margem média',fmtPct(margin),'Lucro ÷ faturamento')+
+    kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`);
+}
+
 function showView(v){
   el('pricingView').classList.toggle('hidden',v!=='pricing');
   el('performanceView').classList.toggle('hidden',v!=='perf');
+  el('monthlyView').classList.toggle('hidden',v!=='monthly');
   el('tabPricing').classList.toggle('active',v==='pricing');
   el('tabPerformance').classList.toggle('active',v==='perf');
+  el('tabMonthly').classList.toggle('active',v==='monthly');
   if(v==='perf'&&simState){populatePerfProducts();renderSimTable();renderSingleSale()}
+  if(v==='monthly')renderMonthly();
 }
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
-// Trocar de plataforma recalcula a venda (comissão/taxas mudam) sem sobrescrever o handler do app.js
-document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{if(simState){renderSimTable();renderSingleSale()}}));
+el('tabMonthly').onclick=()=>showView('monthly');
+el('monthlyLabel').oninput=()=>{try{localStorage.setItem('painel_monthly_label',el('monthlyLabel').value)}catch(e){}};
+el('monthlyClear').onclick=()=>{if(confirm('Zerar as vendas lançadas deste marketplace?')){saveMonthly({});renderMonthly()}};
+el('monthlyPrint').onclick=()=>window.print();
+// Trocar de plataforma recalcula a venda e o fechamento mensal (sem sobrescrever o handler do app.js)
+document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{
+  if(simState){renderSimTable();renderSingleSale()}
+  if(!el('monthlyView').classList.contains('hidden'))renderMonthly();
+}));
 })();

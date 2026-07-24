@@ -4,10 +4,10 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Multiplataforma de Precificação 2026</title>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=15">
+<link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
-<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button></div></nav>
+<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button></div></nav>
 
 <main class="app">
 <header class="topbar"><div class="brand"><h1 id="pageTitle">Painel de Precificação — Mercado Livre</h1><p>Lucro, ROI, ACOS, estoque, preço ideal e cenários de publicidade em um único motor.</p></div><div class="top-actions"><div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀ Claro</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾ Escuro</button></div><button class="btn" id="printBtn">Imprimir diagnóstico</button><button class="btn" id="exportBtn">Exportar dados</button><button class="btn" id="importBtn">Importar dados</button><input id="importFile" type="file" accept="application/json" hidden><button class="btn" id="logoutBtn">Sair</button></div></header>
@@ -54,6 +54,16 @@
 <section class="kpis" id="prodKpis"><article class="kpi"><div class="label">Aguardando relatório do produto</div><div class="sub">Envie o arquivo para ver as métricas</div></article></section>
 <section class="panel" id="simPanel" style="display:none"><div class="panel-head"><h2>Simulador de cenários</h2><span class="status neutral">Edite a coluna "Simulado"</span></div><div class="panel-body"><p class="help" style="margin-top:0">Edite os campos da coluna <b>Simulado</b> — inclusive <b>ROAS, ACOS, CTR, CPA</b> — e compare com o cenário <b>Atual (real)</b> do anúncio. As demais métricas recalculam na hora.</p><div class="table-wrap" id="simTableWrap"></div><div class="form-actions"><button class="btn" id="simReset">Restaurar valores reais</button></div></div></section>
 <section class="panel"><div class="panel-head"><h2>Diagnósticos</h2><span class="status neutral" id="perfStatus">Aguardando dados</span></div><div class="panel-body perf-diags" id="perfDiagnosis"><p class="help">Envie ao menos um arquivo para gerar diagnósticos automáticos (ex.: CTR baixo → melhorar o anúncio).</p></div></section>
+</section>
+
+<section id="monthlyView" class="content hidden">
+<div class="overview"><h2 id="monthlyTitle">Resultado mensal — Mercado Livre</h2><p>Lance as <b>unidades vendidas</b> e o <b>preço médio</b> de cada produto no mês. O painel calcula receita, comissão, taxas, imposto, lucro e margem usando os custos cadastrados. Troque o marketplace na barra superior.</p></div>
+<div class="monthly-toolbar">
+  <div class="field"><label>Mês / referência</label><input id="monthlyLabel" placeholder="Ex.: Janeiro 2026"></div>
+  <div class="monthly-actions"><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar mês deste marketplace</button></div>
+</div>
+<section class="kpis" id="monthlyKpis"></section>
+<section class="panel"><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyTable"></table></div></div></section>
 </section>
 </main>
 
@@ -122,9 +132,9 @@
   </div>
 </div>
 
-<script src="supabase.js?v=15"></script>
-<script src="app.js?v=15"></script>
+<script src="supabase.js?v=16"></script>
+<script src="app.js?v=16"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=15"></script>
+<script src="performance.js?v=16"></script>
 </body>
 </html>
