@@ -6,6 +6,7 @@ Confirma automaticamente o email do usuário
 
 import requests
 import json
+import os
 
 SUPABASE_URL = "https://novcfkmcliquuvmnqwoe.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5vdmNma21jbGlxdXV2bW5xd29lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4Mjk1MjUsImV4cCI6MjEwMDQwNTUyNX0.wQYbOfomZcd_o1RNyQKue62gfJ5z9R4exfuFygNr6NU"
@@ -85,7 +86,7 @@ else:
     login_url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
     login_data = {
         "email": EMAIL,
-        "password": "Painel@2026"
+        "password": os.environ.get("PAINEL_PASSWORD", "")  # exportar antes de rodar: export PAINEL_PASSWORD=...
     }
 
     login_response = requests.post(login_url, json=login_data, headers=headers)

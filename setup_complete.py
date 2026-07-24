@@ -137,7 +137,7 @@ if success:
     print("\nAgora acesse seu painel:")
     print("🌐 https://painel-precificacao-e2pj.vercel.app/")
     print("\nEmail:    gcecommercecontato@gmail.com")
-    print("Senha:    Painel@2026")
+    print("Senha:    (sua senha do painel)")
     print("\n✨ Você verá os 35 produtos prontos para usar!")
     print("\n" + "="*80 + "\n")
 else:

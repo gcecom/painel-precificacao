@@ -8,7 +8,7 @@ Painel web de precificação e performance para e-commerce multiplataforma (Merc
 - **Banco/Auth:** Supabase (Postgres + Auth REST). Chave pública (anon key) hardcoded em `supabase.js` — normal para apps client-only, a segurança real vem do RLS (Row Level Security) no Postgres, não do segredo da chave.
 - **Deploy:** GitHub (`gcecom/painel-precificacao`) → Vercel (deploy automático a cada `git push` na `main`). URL: https://painel-precificacao-e2pj.vercel.app
 - **Cache busting:** todos os `<script>`/`<link>` no `index.html` têm `?v=N`. **Ao editar `styles.css`, `app.js`, `performance.js` ou `supabase.js`, incrementar esse N** — é o que faz o navegador do usuário buscar a versão nova sem precisar de hard refresh manual.
-- **Login de teste:** gcecommercecontato@gmail.com / Painel@2026
+- **Login:** gcecommercecontato@gmail.com — senha não fica no repo (guardar em gerenciador de senhas; repo é público no GitHub).
 
 ## Arquivos principais
 
