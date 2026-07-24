@@ -249,16 +249,57 @@ function simCompute(s){
   return{clicks,conversions,revenue,roas,acos,cpc,cpa,profit,margin};
 }
 
+// Lista de produtos salvos vem do app.js (global). Retorna [] se ainda não carregou.
+function savedProducts(){try{return Array.isArray(products)?products:[]}catch(e){return[]}}
+
+function populatePerfProducts(){
+  const sel=el('perfProductSelect');if(!sel)return;
+  const list=savedProducts();
+  const keep=sel.value;
+  sel.innerHTML='<option value="">— selecione o produto salvo —</option>'+list.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  if(keep&&list.some(p=>p.id===keep))sel.value=keep;
+}
+
+// Casa o produto do relatório com um produto salvo (maior sobreposição de palavras)
+function autoMatchProduct(){
+  const sel=el('perfProductSelect');if(!sel||sel.value)return;
+  const m=mergedMeta();const name=norm(m.produto||'');if(!name)return;
+  const tokens=name.split(/[^a-z0-9]+/).filter(t=>t.length>2);
+  let best=null,bestScore=0;
+  for(const p of savedProducts()){
+    const pn=norm(p.name);const pt=new Set(pn.split(/[^a-z0-9]+/).filter(t=>t.length>2));
+    const score=tokens.filter(t=>pt.has(t)).length;
+    if(score>bestScore){bestScore=score;best=p}
+  }
+  if(best&&bestScore>=2){sel.value=best.id;}
+}
+
+function getChosenProduct(){
+  const sel=el('perfProductSelect');if(!sel||!sel.value)return null;
+  return savedProducts().find(p=>p.id===sel.value)||null;
+}
+
 // Conta visual de UMA venda (por unidade), estilo painel de precificação
 function renderSingleSale(){
   if(!simState){el('singleSalePanel').style.display='none';return}
   el('singleSalePanel').style.display='';
   const s=simState,c=simCompute(s);
-  const price=s.unitPrice,prod=s.cost,
-    commissionVal=price*(s.commission||0)/100,taxVal=price*(s.tax||0)/100,
-    taxasImpostos=commissionVal+taxVal,others=s.others||0,
-    ads=Number.isFinite(c.cpa)?c.cpa:0,
-    lucro=price-prod-taxasImpostos-others-ads,
+  const price=s.unitPrice,ads=Number.isFinite(c.cpa)?c.cpa:0;
+  let prod,taxasImpostos,others,fonte='';
+  const p=getChosenProduct();
+  if(p&&typeof calcAt==='function'&&typeof currentChannel==='function'){
+    // Motor de cálculo da página de Precificação (custos reais do produto salvo)
+    const ch=currentChannel(p),r=calcAt(p,ch,price);
+    prod=p.cost||0;
+    taxasImpostos=r.commission+(ch.fixedFee||0)+r.service+r.tax+(r.unit||0);
+    others=(ch.packaging||0)+(ch.freight||0)+r.returns;
+    fonte=`Custos de <b>${esc(p.name)}</b>`+(prod<=0?' — <b style="color:var(--warn)">defina o custo de compra na aba Precificação</b>':'');
+    el('perfProductHint').innerHTML=fonte;
+  }else{
+    prod=s.cost;taxasImpostos=price*(s.commission||0)/100+price*(s.tax||0)/100;others=s.others||0;
+    el('perfProductHint').innerHTML=savedProducts().length?'Sem produto selecionado — usando os campos do Simulador de cenários abaixo.':'Faça login e cadastre produtos na aba Precificação para usar os custos reais.';
+  }
+  const lucro=price-prod-taxasImpostos-others-ads,
     margin=price>0?lucro/price:NaN,roi=prod>0?lucro/prod:NaN;
   el('singleSaleKpis').innerHTML=
     kpi('Receita da venda',fmtMoney(price),'Valor de venda por unidade')+
@@ -315,6 +356,7 @@ function buildSimulator(){
   el('simPanel').style.display='';
   simBase=buildSimBase();
   simState=Object.assign({},simBase);
+  populatePerfProducts();autoMatchProduct();
   renderSimInputs();renderSimOutputs();renderSingleSale();
 }
 
@@ -408,13 +450,17 @@ el('prodFileBtn').onclick=()=>el('prodFile').click();
 el('adsFile').onchange=()=>handleFile(el('adsFile'),el('adsFileStatus'),ADS_MAP,d=>adsData=d,'ads');
 el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_MAP,d=>prodData=d,'prod');
 el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimInputs();renderSimOutputs()}};
+el('perfProductSelect').onchange=()=>renderSingleSale();
 
 function showView(v){
   el('pricingView').classList.toggle('hidden',v!=='pricing');
   el('performanceView').classList.toggle('hidden',v!=='perf');
   el('tabPricing').classList.toggle('active',v==='pricing');
   el('tabPerformance').classList.toggle('active',v==='perf');
+  if(v==='perf'&&simState){populatePerfProducts();renderSingleSale()}
 }
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
+// Trocar de plataforma recalcula a venda (comissão/taxas mudam) sem sobrescrever o handler do app.js
+document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{if(simState)renderSingleSale()}));
 })();
