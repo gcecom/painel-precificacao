@@ -221,9 +221,19 @@ function buildSimBase(){
   return{impressions,ctr:+ctr.toFixed(4),convRate:+convRate.toFixed(4),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0,commission:14,tax:0,others:0};
 }
 
+// Custos por unidade: do produto salvo (motor calcAt) OU dos campos manuais
+function costBreakdown(s){
+  const price=s.unitPrice||0,p=getChosenProduct();
+  if(p&&typeof calcAt==='function'&&typeof currentChannel==='function'){
+    const ch=currentChannel(p),r=calcAt(p,ch,price);
+    return{product:p.cost||0,platform:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),tax:r.tax,others:(ch.packaging||0)+(ch.freight||0)+r.returns,fromProduct:true,name:p.name,cost:p.cost||0};
+  }
+  return{product:s.cost||0,platform:price*(s.commission||0)/100,tax:price*(s.tax||0)/100,others:s.others||0,fromProduct:false};
+}
+
 // Calcula TODAS as métricas a partir das variáveis primárias
 function computeAll(s){
-  const {impressions,ctr,convRate,unitPrice,spend,cost,commission,tax,others}=s;
+  const {impressions,ctr,convRate,unitPrice,spend}=s;
   const clicks=impressions*ctr/100;
   const conversions=clicks*convRate/100;
   const revenue=conversions*unitPrice;
@@ -231,10 +241,11 @@ function computeAll(s){
   const acos=revenue>0?spend/revenue:NaN;
   const cpc=clicks>0?spend/clicks:NaN;
   const cpa=conversions>0?spend/conversions:NaN;
-  const fees=revenue*(commission||0)/100,taxes=revenue*(tax||0)/100,othersTotal=(others||0)*conversions;
-  const profit=revenue-spend-(cost||0)*conversions-fees-taxes-othersTotal;
+  const cb=costBreakdown(s);
+  const nonAd=cb.product+cb.platform+cb.tax+cb.others;
+  const profit=revenue-spend-nonAd*conversions;
   const margin=revenue>0?profit/revenue:NaN;
-  return{impressions,ctr,convRate,unitPrice,spend,cost,commission,tax,others,clicks,conversions,revenue,roas,acos,cpc,cpa,profit,margin};
+  return{impressions,ctr,convRate,unitPrice,spend,cost:s.cost,commission:s.commission,tax:s.tax,others:s.others,clicks,conversions,revenue,roas,acos,cpc,cpa,cb,profit,margin};
 }
 const simCompute=computeAll; // compat
 
@@ -242,9 +253,8 @@ const simCompute=computeAll; // compat
 const fPctNum=v=>Number.isFinite(v)?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—';
 const fX=v=>Number.isFinite(v)?v.toFixed(2)+'x':'—';
 
-// Linhas da tabela. edit.set faz o "back-solve" quando a métrica é derivada.
-const SIM_ROWS=[
-  {sec:'Métricas do anúncio'},
+// Linhas do anúncio (sempre editáveis; edit.set faz o "back-solve" das derivadas)
+const ADS_ROWS=[
   {k:'impressions',label:'Impressões',fmt:fmtInt,get:m=>m.impressions,edit:{val:m=>m.impressions,set:(v,s)=>s.impressions=v}},
   {k:'ctr',label:'CTR',fmt:fPctNum,goodUp:true,get:m=>m.ctr,edit:{val:m=>m.ctr,set:(v,s)=>s.ctr=v}},
   {k:'clicks',label:'Cliques',fmt:fmtInt,goodUp:true,get:m=>m.clicks},
@@ -256,20 +266,33 @@ const SIM_ROWS=[
   {k:'roas',label:'ROAS',fmt:fX,goodUp:true,get:m=>m.roas,edit:{val:m=>m.roas,set:(v,s,m)=>{if(v>0)s.spend=m.revenue/v}}},
   {k:'acos',label:'ACOS',fmt:fmtPct,goodUp:false,get:m=>m.acos,edit:{val:m=>Number.isFinite(m.acos)?m.acos*100:0,set:(v,s,m)=>{s.spend=m.revenue*v/100}}},
   {k:'cpc',label:'CPC',fmt:fmtMoney,goodUp:false,get:m=>m.cpc,edit:{val:m=>m.cpc,set:(v,s,m)=>{s.spend=v*m.clicks}}},
-  {k:'cpa',label:'CPA (por venda)',fmt:fmtMoney,goodUp:false,get:m=>m.cpa,edit:{val:m=>m.cpa,set:(v,s,m)=>{s.spend=v*m.conversions}}},
-  {sec:'Custos do produto e resultado'},
+  {k:'cpa',label:'CPA (por venda)',fmt:fmtMoney,goodUp:false,get:m=>m.cpa,edit:{val:m=>m.cpa,set:(v,s,m)=>{s.spend=v*m.conversions}}}
+];
+// Custos manuais — só quando NÃO há produto salvo selecionado
+const COST_MANUAL_ROWS=[
   {k:'cost',label:'Custo do produto (R$)',fmt:fmtMoney,get:m=>m.cost,edit:{val:m=>m.cost,set:(v,s)=>s.cost=v}},
   {k:'commission',label:'Comissão (%)',fmt:fPctNum,get:m=>m.commission,edit:{val:m=>m.commission,set:(v,s)=>s.commission=v}},
-  {k:'tax',label:'Imposto (%)',fmt:fPctNum,get:m=>m.tax,edit:{val:m=>m.tax,set:(v,s)=>s.tax=v}},
-  {k:'others',label:'Outros custos / venda (R$)',fmt:fmtMoney,get:m=>m.others,edit:{val:m=>m.others,set:(v,s)=>s.others=v}},
+  {k:'taxp',label:'Imposto (%)',fmt:fPctNum,get:m=>m.tax,edit:{val:m=>m.tax,set:(v,s)=>s.tax=v}},
+  {k:'others',label:'Outros custos / venda (R$)',fmt:fmtMoney,get:m=>m.others,edit:{val:m=>m.others,set:(v,s)=>s.others=v}}
+];
+// Custos do produto salvo — somente leitura, por unidade, via calcAt
+const COST_PRODUCT_ROWS=[
+  {k:'pc_product',label:'Custo do produto',fmt:fmtMoney,goodUp:false,get:m=>m.cb.product},
+  {k:'pc_platform',label:'Comissão + tarifas',fmt:fmtMoney,goodUp:false,get:m=>m.cb.platform},
+  {k:'pc_tax',label:'Impostos',fmt:fmtMoney,goodUp:false,get:m=>m.cb.tax},
+  {k:'pc_others',label:'Outros (embalagem, frete)',fmt:fmtMoney,goodUp:false,get:m=>m.cb.others}
+];
+const RESULT_ROWS=[
   {k:'profit',label:'Lucro total',fmt:fmtMoney,goodUp:true,strong:true,get:m=>m.profit},
   {k:'margin',label:'Margem',fmt:fmtPct,goodUp:true,strong:true,get:m=>m.margin}
 ];
+function costRows(){return getChosenProduct()?COST_PRODUCT_ROWS:COST_MANUAL_ROWS}
+function allRows(){return[{sec:'Métricas do anúncio'},...ADS_ROWS,{sec:'Custos do produto e resultado'},...costRows(),...RESULT_ROWS]}
 
 function simRowsHTML(){
   const base=computeAll(simBase),cur=computeAll(simState);
   let html='<table class="sim-table"><thead><tr><th>Métrica</th><th>Atual (real)</th><th>Simulado</th><th>Variação</th></tr></thead><tbody>';
-  for(const row of SIM_ROWS){
+  for(const row of allRows()){
     if(row.sec){html+=`<tr class="sim-sec"><td colspan="4">${row.sec}</td></tr>`;continue}
     const bv=row.get(base),cv=row.get(cur);
     let sim;
@@ -277,7 +300,10 @@ function simRowsHTML(){
     else sim=`<b data-simval="${row.k}">${row.fmt(cv)}</b>`;
     html+=`<tr class="${row.strong?'sim-strong':''}${row.edit?' sim-editable':''}"><td class="sim-mlabel">${row.label}</td><td class="sim-atual">${row.fmt(bv)}</td><td class="sim-simcell">${sim}</td><td data-simvar="${row.k}" class="sim-varcell">${varHTML(row,bv,cv)}</td></tr>`;
   }
-  return html+'</tbody></table>';
+  html+='</tbody></table>';
+  const p=getChosenProduct();
+  if(p)html+=`<p class="help" style="margin:8px 2px 0">Custos de <b>${esc(p.name)}</b> (aba Precificação).${(p.cost||0)<=0?' <b style="color:var(--warn)">Defina o custo de compra lá.</b>':''} Troque o produto no seletor acima.</p>`;
+  return html;
 }
 
 function varHTML(row,bv,cv){
@@ -289,7 +315,7 @@ function varHTML(row,bv,cv){
 // Atualiza células sem recriar a tabela (mantém o foco no input editado)
 function updateSimTable(focusedKey){
   const wrap=el('simTableWrap'),base=computeAll(simBase),cur=computeAll(simState);
-  for(const row of SIM_ROWS){
+  for(const row of allRows()){
     if(row.sec)continue;
     const cv=row.get(cur),bv=row.get(base);
     const b=wrap.querySelector(`[data-simval="${row.k}"]`);if(b)b.textContent=row.fmt(cv);
@@ -344,22 +370,12 @@ function getChosenProduct(){
 function renderSingleSale(){
   if(!simState){el('singleSalePanel').style.display='none';return}
   el('singleSalePanel').style.display='';
-  const s=simState,c=simCompute(s);
+  const s=simState,c=computeAll(s),cb=c.cb;
   const price=s.unitPrice,ads=Number.isFinite(c.cpa)?c.cpa:0;
-  let prod,taxasImpostos,others,fonte='';
+  const prod=cb.product,taxasImpostos=cb.platform+cb.tax,others=cb.others;
   const p=getChosenProduct();
-  if(p&&typeof calcAt==='function'&&typeof currentChannel==='function'){
-    // Motor de cálculo da página de Precificação (custos reais do produto salvo)
-    const ch=currentChannel(p),r=calcAt(p,ch,price);
-    prod=p.cost||0;
-    taxasImpostos=r.commission+(ch.fixedFee||0)+r.service+r.tax+(r.unit||0);
-    others=(ch.packaging||0)+(ch.freight||0)+r.returns;
-    fonte=`Custos de <b>${esc(p.name)}</b>`+(prod<=0?' — <b style="color:var(--warn)">defina o custo de compra na aba Precificação</b>':'');
-    el('perfProductHint').innerHTML=fonte;
-  }else{
-    prod=s.cost;taxasImpostos=price*(s.commission||0)/100+price*(s.tax||0)/100;others=s.others||0;
-    el('perfProductHint').innerHTML=savedProducts().length?'Sem produto selecionado — usando os campos do Simulador de cenários abaixo.':'Faça login e cadastre produtos na aba Precificação para usar os custos reais.';
-  }
+  if(p)el('perfProductHint').innerHTML=`Custos de <b>${esc(p.name)}</b>`+((prod<=0)?' — <b style="color:var(--warn)">defina o custo de compra na aba Precificação</b>':'');
+  else el('perfProductHint').innerHTML=savedProducts().length?'Sem produto selecionado — usando os campos manuais do Simulador de cenários abaixo.':'Faça login e cadastre produtos na aba Precificação para usar os custos reais.';
   const lucro=price-prod-taxasImpostos-others-ads,
     margin=price>0?lucro/price:NaN,roi=prod>0?lucro/prod:NaN;
   el('singleSaleKpis').innerHTML=
@@ -475,17 +491,17 @@ el('prodFileBtn').onclick=()=>el('prodFile').click();
 el('adsFile').onchange=()=>handleFile(el('adsFile'),el('adsFileStatus'),ADS_MAP,d=>adsData=d,'ads');
 el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_MAP,d=>prodData=d,'prod');
 el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimTable();renderSingleSale()}};
-el('perfProductSelect').onchange=()=>renderSingleSale();
+el('perfProductSelect').onchange=()=>{if(simState){renderSimTable();renderSingleSale()}};
 
 function showView(v){
   el('pricingView').classList.toggle('hidden',v!=='pricing');
   el('performanceView').classList.toggle('hidden',v!=='perf');
   el('tabPricing').classList.toggle('active',v==='pricing');
   el('tabPerformance').classList.toggle('active',v==='perf');
-  if(v==='perf'&&simState){populatePerfProducts();renderSingleSale()}
+  if(v==='perf'&&simState){populatePerfProducts();renderSimTable();renderSingleSale()}
 }
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
 // Trocar de plataforma recalcula a venda (comissão/taxas mudam) sem sobrescrever o handler do app.js
-document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{if(simState)renderSingleSale()}));
+document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{if(simState){renderSimTable();renderSingleSale()}}));
 })();
