@@ -329,7 +329,7 @@ function renderSimTable(){
   wrap.innerHTML=simRowsHTML();
   wrap.querySelectorAll('input[data-simrow]').forEach(inp=>{
     inp.addEventListener('input',()=>{
-      const row=SIM_ROWS.find(r=>r.k===inp.dataset.simrow);
+      const row=allRows().find(r=>r.k===inp.dataset.simrow);
       row.edit.set(Number(inp.value)||0,simState,computeAll(simState));
       updateSimTable(row.k);renderSingleSale();
     });
