@@ -15,17 +15,18 @@ const PROD_MAP={impressions:['impress'],clicks:['clique','click'],visits:['visit
 
 let adsData=null,prodData=null,adsMeta={},prodMeta={},simBase=null,simState=null;
 
+// Rótulos que vêm como par "rótulo,valor" na mesma linha (metadados de cabeçalho)
 const META_WANT={
   produto:['nome do produto / anuncio','nome do produto/anuncio','nome do produto','produto'],
   id:['id do produto','id do item','id do anuncio'],
-  campanha:['metodo de lance','nome da campanha','campanha','tipo de campanha'],
+  campanha:['nome da campanha','campanha','tipo de campanha'],
   loja:['nome da loja','loja'],
   idLoja:['id da loja'],
   periodo:['periodo'],
   data:['data de criacao do relatorio']
 };
 
-// Extrai identificação: pares rótulo/valor (Ads) e colunas Produto/ID (produto)
+// Extrai identificação: pares rótulo/valor (Ads) e colunas Produto/ID/Lance (tabela)
 function extractMeta(sheets,map){
   const meta={};
   for(const rows of sheets){
@@ -33,6 +34,8 @@ function extractMeta(sheets,map){
       if(!r)continue;
       const cells=r.map(c=>String(c).trim());
       const nn=cells.map(norm);
+      // par rótulo/valor: só quando a linha tem poucas células preenchidas (não é cabeçalho de tabela)
+      if(cells.filter(c=>c!=='').length>4)continue;
       for(const key in META_WANT){
         if(meta[key])continue;
         const i=nn.findIndex(c=>META_WANT[key].some(k=>c===k||c.startsWith(k+' ')||c===k.replace(/ /g,'')));
@@ -42,14 +45,16 @@ function extractMeta(sheets,map){
         }
       }
     }
-    // Colunas Produto / ID (relatório do produto)
-    for(const sec of splitSections(rows,['produto','id do item','impress'])){
+    // Colunas da tabela: Produto / ID / Método de Lance → valor da 1ª linha de dados
+    for(const sec of splitSections(rows,['produto','id do item','impress','metodo de lance','clique'])){
       const pi=sec.header.findIndex(h=>h.includes('produto')&&!h.includes('id'));
       const ii=sec.header.findIndex(h=>h.includes('id do item')||h.includes('id do produto'));
+      const ci=sec.header.findIndex(h=>h.includes('metodo de lance'));
       const row=sec.data.find(r=>r&&r.some(c=>String(c).trim()!==''));
       if(row){
         if(!meta.produto&&pi>=0&&String(row[pi]||'').trim())meta.produto=String(row[pi]).trim();
         if(!meta.id&&ii>=0&&String(row[ii]||'').trim())meta.id=String(row[ii]).trim();
+        if(!meta.campanha&&ci>=0&&String(row[ci]||'').trim())meta.campanha=String(row[ci]).trim();
       }
     }
   }
@@ -222,7 +227,7 @@ function buildSimBase(){
   if(unitPrice<=0&&p&&p.orders>0)unitPrice=p.revenue/p.orders;
   const ctr=impressions>0?clicks/impressions*100:0;
   const convRate=clicks>0?conversions/clicks*100:0;
-  return{impressions,ctr:+ctr.toFixed(2),convRate:+convRate.toFixed(2),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0};
+  return{impressions,ctr:+ctr.toFixed(4),convRate:+convRate.toFixed(4),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0};
 }
 
 function simCompute(s){
