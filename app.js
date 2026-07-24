@@ -70,6 +70,65 @@ async function initAuth(){let user=await supabaseClient.getCurrentUser();if(user
 // Se o token expirar/for revogado em qualquer requisição, volta pra tela de login em vez de continuar mostrando dados desatualizados
 supabaseClient.onAuthExpired=()=>{currentUser=null;products=[];selectedId='';resetMonthlyState();$('loginModal').classList.remove('hidden');$('logoutBtn').style.display='none'};
 
+// ---------- Recuperação de senha (sem depender do Dashboard do Supabase) ----------
+function setAuthMsg(el,text,ok){el.textContent=text;el.style.display='block';el.style.background=ok?'var(--goodbg)':'var(--badbg)';el.style.color=ok?'var(--good)':'var(--bad)';el.style.borderLeftColor=ok?'var(--good)':'var(--bad)'}
+
+function showRecoverForm(){$('loginForm').classList.add('hidden');$('loginFooterLinks').classList.add('hidden');$('recoverForm').classList.remove('hidden');$('recoverFooterLinks').classList.remove('hidden');$('recoverMsg').style.display='none'}
+function showLoginForm(){$('recoverForm').classList.add('hidden');$('recoverFooterLinks').classList.add('hidden');$('loginForm').classList.remove('hidden');$('loginFooterLinks').classList.remove('hidden')}
+
+let recoveryAccessToken=null;
+function detectRecoveryLink(){
+  let hash=window.location.hash.startsWith('#')?window.location.hash.slice(1):'';
+  let params=new URLSearchParams(hash);
+  if(params.get('type')==='recovery'&&params.get('access_token')){
+    recoveryAccessToken=params.get('access_token');
+    history.replaceState(null,'',window.location.pathname+window.location.search);
+    $('loginModal').classList.remove('hidden');
+    $('loginForm').classList.add('hidden');$('loginFooterLinks').classList.add('hidden');
+    $('recoverForm').classList.add('hidden');$('recoverFooterLinks').classList.add('hidden');
+    $('newPasswordForm').classList.remove('hidden');
+    return true;
+  }
+  return false;
+}
+
+$('showRecover').onclick=()=>{$('recoverEmail').value=$('loginEmail').value;showRecoverForm()};
+$('backToLogin').onclick=showLoginForm;
+
+$('recoverBtn').onclick=async()=>{
+  let email=$('recoverEmail').value,msg=$('recoverMsg');
+  msg.style.display='none';
+  if(!email){setAuthMsg(msg,'⚠️  Digite seu email',false);return}
+  try{
+    $('recoverBtn').classList.add('loading');
+    await supabaseClient.recover(email);
+    setAuthMsg(msg,'✅ Se o email existir, enviamos um link de recuperação. Confira sua caixa de entrada.',true);
+  }catch(e){
+    setAuthMsg(msg,'❌ '+e.message,false);
+  }finally{
+    $('recoverBtn').classList.remove('loading');
+  }
+};
+
+$('newPasswordBtn').onclick=async()=>{
+  let p1=$('newPassword1').value,p2=$('newPassword2').value,msg=$('newPasswordMsg');
+  msg.style.display='none';
+  if(!p1||p1.length<6){setAuthMsg(msg,'⚠️  A senha precisa ter ao menos 6 caracteres',false);return}
+  if(p1!==p2){setAuthMsg(msg,'⚠️  As senhas não coincidem',false);return}
+  if(!recoveryAccessToken){setAuthMsg(msg,'❌ Link de recuperação inválido ou expirado. Peça um novo.',false);return}
+  try{
+    $('newPasswordBtn').classList.add('loading');
+    await supabaseClient.updateUserPassword(recoveryAccessToken,p1);
+    setAuthMsg(msg,'✅ Senha alterada! Faça login com a nova senha.',true);
+    recoveryAccessToken=null;
+    setTimeout(()=>{$('newPasswordForm').classList.add('hidden');showLoginForm();$('newPassword1').value='';$('newPassword2').value=''},1600);
+  }catch(e){
+    setAuthMsg(msg,'❌ '+e.message,false);
+  }finally{
+    $('newPasswordBtn').classList.remove('loading');
+  }
+};
+
 $('loginBtn').onclick=async()=>{let email=$('loginEmail').value,pass=$('loginPassword').value,errEl=$('loginError');errEl.style.display='none';errEl.textContent='';if(!email){errEl.textContent='⚠️  Por favor, digite seu email';errEl.style.display='block';return}if(!pass){errEl.textContent='⚠️  Por favor, digite sua senha';errEl.style.display='block';return}try{$('loginBtn').classList.add('loading');let result=await supabaseClient.signIn(email,pass);if(result.error){errEl.textContent='❌ '+result.error.message;errEl.style.display='block';return}if(result.access_token){currentUser=result.user;await initAuth()}else{errEl.textContent='❌ Senha errada ou email não cadastrado';errEl.style.display='block'}}catch(e){let msg=e.message.toLowerCase();if(msg.includes('invalid')||msg.includes('incorrect'))errEl.textContent='❌ Senha errada! Verifique e tente novamente';else if(msg.includes('user')||msg.includes('not found'))errEl.textContent='❌ Email não encontrado. Crie uma conta primeiro';else errEl.textContent='❌ '+e.message;errEl.style.display='block'}finally{$('loginBtn').classList.remove('loading')}};
 
 $('logoutBtn').onclick=async()=>{await supabaseClient.signOut();currentUser=null;products=[];selectedId='';await initAuth()};
@@ -109,4 +168,4 @@ let passwordToggle=$('passwordToggle');if(passwordToggle){passwordToggle.onclick
 $('loginPassword').onkeypress=e=>{if(e.key==='Enter')$('loginBtn').click()};
 $('loginEmail').onkeypress=e=>{if(e.key==='Enter')$('loginPassword').focus()};
 
-initAuth();
+if(!detectRecoveryLink())initAuth();

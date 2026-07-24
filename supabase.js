@@ -103,6 +103,32 @@ const supabaseClient = {
 
   async signOut() { this.clearSession() },
 
+  // Envia email de recuperação de senha (fluxo "esqueci minha senha", sem precisar do Dashboard)
+  async recover(email) {
+    const redirectTo = encodeURIComponent(window.location.origin + window.location.pathname);
+    return fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${redirectTo}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email }),
+    }).then(r => r.json());
+  },
+
+  // Define nova senha usando o access_token de recuperação (vem no link do email)
+  async updateUserPassword(recoveryAccessToken, newPassword) {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${recoveryAccessToken}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.msg || j.error_description || j.message || 'Erro ao atualizar senha');
+    return j;
+  },
+
   // ---------- Produtos (isolados por user_id via RLS + filtro no cliente) ----------
   async getProducts(userId) {
     try {

@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Multiplataforma de Precificação 2026</title>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
 <nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button></div></nav>
@@ -97,7 +97,7 @@
       <h1>Painel de Precificação</h1>
       <p class="login-subtitle">GCEcommerce</p>
 
-      <form class="login-form" onsubmit="return false;">
+      <form class="login-form" id="loginForm" onsubmit="return false;">
         <div class="form-group">
           <label for="loginEmail">Email</label>
           <input id="loginEmail" type="email" placeholder="seu@email.com" autocomplete="email">
@@ -125,16 +125,43 @@
         <button type="button" class="btn-login" id="loginBtn">Entrar</button>
       </form>
 
-      <div class="login-footer">
+      <form class="login-form hidden" id="recoverForm" onsubmit="return false;">
+        <div class="form-group">
+          <label for="recoverEmail">Email</label>
+          <input id="recoverEmail" type="email" placeholder="seu@email.com" autocomplete="email">
+        </div>
+        <div id="recoverMsg" class="login-error" style="display:none;"></div>
+        <button type="button" class="btn-login" id="recoverBtn">Enviar link de recuperação</button>
+      </form>
+
+      <form class="login-form hidden" id="newPasswordForm" onsubmit="return false;">
+        <p class="login-subtitle" style="margin-bottom:16px">Defina sua nova senha</p>
+        <div class="form-group">
+          <label for="newPassword1">Nova senha</label>
+          <input id="newPassword1" type="password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="newPassword2">Confirmar nova senha</label>
+          <input id="newPassword2" type="password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div id="newPasswordMsg" class="login-error" style="display:none;"></div>
+        <button type="button" class="btn-login" id="newPasswordBtn">Salvar nova senha</button>
+      </form>
+
+      <div class="login-footer" id="loginFooterLinks">
+        <p><button type="button" class="btn-signup-link" id="showRecover">Esqueci minha senha</button></p>
         <p>Novo por aqui? <button type="button" class="btn-signup-link" id="toggleSignup">Criar conta</button></p>
+      </div>
+      <div class="login-footer hidden" id="recoverFooterLinks">
+        <p><button type="button" class="btn-signup-link" id="backToLogin">Voltar para o login</button></p>
       </div>
     </div>
   </div>
 </div>
 
-<script src="supabase.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script src="supabase.js?v=18"></script>
+<script src="app.js?v=18"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=17"></script>
+<script src="performance.js?v=18"></script>
 </body>
 </html>
