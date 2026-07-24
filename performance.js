@@ -209,19 +209,7 @@ function renderProd(){
     kpi('Valor de venda por unidade (ticket)',fmtMoney(ticket),'Vendas ÷ pedidos');
 }
 
-// ---------- SIMULADOR DE CENÁRIOS ----------
-const SIM_FIELDS=[
-  {k:'impressions',label:'Impressões',step:'1',hint:'Quantas vezes o anúncio apareceu'},
-  {k:'ctr',label:'CTR (%)',step:'.01',hint:'Cliques ÷ impressões'},
-  {k:'convRate',label:'Taxa de conversão (%)',step:'.01',hint:'Vendas ÷ cliques'},
-  {k:'unitPrice',label:'Preço de venda unitário (R$)',step:'.01',hint:'Valor de cada venda'},
-  {k:'spend',label:'Gasto em Ads (R$)',step:'.01',hint:'Investimento em anúncios'},
-  {k:'cost',label:'Custo do produto (R$)',step:'.01',hint:'Custo de compra por unidade'},
-  {k:'commission',label:'Comissão da plataforma (%)',step:'.01',hint:'Comissão sobre a venda'},
-  {k:'tax',label:'Imposto (%)',step:'.01',hint:'Imposto sobre a venda'},
-  {k:'others',label:'Outros custos / venda (R$)',step:'.01',hint:'Embalagem, frete, etc.'}
-];
-
+// ---------- SIMULADOR DE CENÁRIOS (tabela comparativa) ----------
 function buildSimBase(){
   const a=adsData,p=prodData;
   let impressions=0,clicks=0,spend=0,conversions=0,revenue=0,unitPrice=0;
@@ -233,20 +221,93 @@ function buildSimBase(){
   return{impressions,ctr:+ctr.toFixed(4),convRate:+convRate.toFixed(4),unitPrice:+unitPrice.toFixed(2),spend:+spend.toFixed(2),cost:0,commission:14,tax:0,others:0};
 }
 
-function simCompute(s){
-  const clicks=s.impressions*s.ctr/100;
-  const conversions=clicks*s.convRate/100;
-  const revenue=conversions*s.unitPrice;
-  const roas=s.spend>0?revenue/s.spend:NaN;
-  const acos=revenue>0?s.spend/revenue:NaN;
-  const cpc=clicks>0?s.spend/clicks:NaN;
-  const cpa=conversions>0?s.spend/conversions:NaN;
-  const fees=revenue*(s.commission||0)/100;
-  const taxes=revenue*(s.tax||0)/100;
-  const othersTotal=(s.others||0)*conversions;
-  const profit=revenue-s.spend-s.cost*conversions-fees-taxes-othersTotal;
+// Calcula TODAS as métricas a partir das variáveis primárias
+function computeAll(s){
+  const {impressions,ctr,convRate,unitPrice,spend,cost,commission,tax,others}=s;
+  const clicks=impressions*ctr/100;
+  const conversions=clicks*convRate/100;
+  const revenue=conversions*unitPrice;
+  const roas=spend>0?revenue/spend:NaN;
+  const acos=revenue>0?spend/revenue:NaN;
+  const cpc=clicks>0?spend/clicks:NaN;
+  const cpa=conversions>0?spend/conversions:NaN;
+  const fees=revenue*(commission||0)/100,taxes=revenue*(tax||0)/100,othersTotal=(others||0)*conversions;
+  const profit=revenue-spend-(cost||0)*conversions-fees-taxes-othersTotal;
   const margin=revenue>0?profit/revenue:NaN;
-  return{clicks,conversions,revenue,roas,acos,cpc,cpa,profit,margin};
+  return{impressions,ctr,convRate,unitPrice,spend,cost,commission,tax,others,clicks,conversions,revenue,roas,acos,cpc,cpa,profit,margin};
+}
+const simCompute=computeAll; // compat
+
+// Formatadores para a tabela
+const fPctNum=v=>Number.isFinite(v)?v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—';
+const fX=v=>Number.isFinite(v)?v.toFixed(2)+'x':'—';
+
+// Linhas da tabela. edit.set faz o "back-solve" quando a métrica é derivada.
+const SIM_ROWS=[
+  {sec:'Métricas do anúncio'},
+  {k:'impressions',label:'Impressões',fmt:fmtInt,get:m=>m.impressions,edit:{val:m=>m.impressions,set:(v,s)=>s.impressions=v}},
+  {k:'ctr',label:'CTR',fmt:fPctNum,goodUp:true,get:m=>m.ctr,edit:{val:m=>m.ctr,set:(v,s)=>s.ctr=v}},
+  {k:'clicks',label:'Cliques',fmt:fmtInt,goodUp:true,get:m=>m.clicks},
+  {k:'convRate',label:'Taxa de conversão',fmt:fPctNum,goodUp:true,get:m=>m.convRate,edit:{val:m=>m.convRate,set:(v,s)=>s.convRate=v}},
+  {k:'conversions',label:'Vendas (conversões)',fmt:fmtInt,goodUp:true,get:m=>m.conversions},
+  {k:'unitPrice',label:'Preço de venda (R$)',fmt:fmtMoney,get:m=>m.unitPrice,edit:{val:m=>m.unitPrice,set:(v,s)=>s.unitPrice=v}},
+  {k:'spend',label:'Gasto em Ads (R$)',fmt:fmtMoney,goodUp:false,get:m=>m.spend,edit:{val:m=>m.spend,set:(v,s)=>s.spend=v}},
+  {k:'revenue',label:'Receita (GMV)',fmt:fmtMoney,goodUp:true,get:m=>m.revenue},
+  {k:'roas',label:'ROAS',fmt:fX,goodUp:true,get:m=>m.roas,edit:{val:m=>m.roas,set:(v,s,m)=>{if(v>0)s.spend=m.revenue/v}}},
+  {k:'acos',label:'ACOS',fmt:fmtPct,goodUp:false,get:m=>m.acos,edit:{val:m=>Number.isFinite(m.acos)?m.acos*100:0,set:(v,s,m)=>{s.spend=m.revenue*v/100}}},
+  {k:'cpc',label:'CPC',fmt:fmtMoney,goodUp:false,get:m=>m.cpc,edit:{val:m=>m.cpc,set:(v,s,m)=>{s.spend=v*m.clicks}}},
+  {k:'cpa',label:'CPA (por venda)',fmt:fmtMoney,goodUp:false,get:m=>m.cpa,edit:{val:m=>m.cpa,set:(v,s,m)=>{s.spend=v*m.conversions}}},
+  {sec:'Custos do produto e resultado'},
+  {k:'cost',label:'Custo do produto (R$)',fmt:fmtMoney,get:m=>m.cost,edit:{val:m=>m.cost,set:(v,s)=>s.cost=v}},
+  {k:'commission',label:'Comissão (%)',fmt:fPctNum,get:m=>m.commission,edit:{val:m=>m.commission,set:(v,s)=>s.commission=v}},
+  {k:'tax',label:'Imposto (%)',fmt:fPctNum,get:m=>m.tax,edit:{val:m=>m.tax,set:(v,s)=>s.tax=v}},
+  {k:'others',label:'Outros custos / venda (R$)',fmt:fmtMoney,get:m=>m.others,edit:{val:m=>m.others,set:(v,s)=>s.others=v}},
+  {k:'profit',label:'Lucro total',fmt:fmtMoney,goodUp:true,strong:true,get:m=>m.profit},
+  {k:'margin',label:'Margem',fmt:fmtPct,goodUp:true,strong:true,get:m=>m.margin}
+];
+
+function simRowsHTML(){
+  const base=computeAll(simBase),cur=computeAll(simState);
+  let html='<table class="sim-table"><thead><tr><th>Métrica</th><th>Atual (real)</th><th>Simulado</th><th>Variação</th></tr></thead><tbody>';
+  for(const row of SIM_ROWS){
+    if(row.sec){html+=`<tr class="sim-sec"><td colspan="4">${row.sec}</td></tr>`;continue}
+    const bv=row.get(base),cv=row.get(cur);
+    let sim;
+    if(row.edit){const iv=row.edit.val(cur);sim=`<input type="number" step="any" inputmode="decimal" data-simrow="${row.k}" value="${Number.isFinite(iv)?+iv.toFixed(4):''}">`;}
+    else sim=`<b data-simval="${row.k}">${row.fmt(cv)}</b>`;
+    html+=`<tr class="${row.strong?'sim-strong':''}${row.edit?' sim-editable':''}"><td class="sim-mlabel">${row.label}</td><td class="sim-atual">${row.fmt(bv)}</td><td class="sim-simcell">${sim}</td><td data-simvar="${row.k}" class="sim-varcell">${varHTML(row,bv,cv)}</td></tr>`;
+  }
+  return html+'</tbody></table>';
+}
+
+function varHTML(row,bv,cv){
+  if(!(Number.isFinite(bv)&&Number.isFinite(cv))||Math.abs(cv-bv)<=1e-9)return'';
+  const up=cv>bv,good=row.goodUp==null?null:(up===row.goodUp),cls=good==null?'':(good?'pos':'neg');
+  return`<span class="sim-delta ${cls}">${up?'▲':'▼'} ${row.fmt(Math.abs(cv-bv))}</span>`;
+}
+
+// Atualiza células sem recriar a tabela (mantém o foco no input editado)
+function updateSimTable(focusedKey){
+  const wrap=el('simTableWrap'),base=computeAll(simBase),cur=computeAll(simState);
+  for(const row of SIM_ROWS){
+    if(row.sec)continue;
+    const cv=row.get(cur),bv=row.get(base);
+    const b=wrap.querySelector(`[data-simval="${row.k}"]`);if(b)b.textContent=row.fmt(cv);
+    if(row.edit&&row.k!==focusedKey){const inp=wrap.querySelector(`input[data-simrow="${row.k}"]`);if(inp){const iv=row.edit.val(cur);inp.value=Number.isFinite(iv)?+iv.toFixed(4):''}}
+    const vt=wrap.querySelector(`[data-simvar="${row.k}"]`);if(vt)vt.innerHTML=varHTML(row,bv,cv);
+  }
+}
+
+function renderSimTable(){
+  const wrap=el('simTableWrap');
+  wrap.innerHTML=simRowsHTML();
+  wrap.querySelectorAll('input[data-simrow]').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const row=SIM_ROWS.find(r=>r.k===inp.dataset.simrow);
+      row.edit.set(Number(inp.value)||0,simState,computeAll(simState));
+      updateSimTable(row.k);renderSingleSale();
+    });
+  });
 }
 
 // Lista de produtos salvos vem do app.js (global). Retorna [] se ainda não carregou.
@@ -315,49 +376,13 @@ function renderSingleSale(){
   el('ssCaption').textContent=`Com preço de ${fmtMoney(price)}, cada venda ${lucro>=0?'lucra':'perde'} ${fmtMoney(Math.abs(lucro))} (margem ${fmtPct(margin)}).`;
 }
 
-function renderSimInputs(){
-  el('simInputs').innerHTML=SIM_FIELDS.map(f=>`<div class="field"><label>${f.label}</label><input type="number" min="0" step="${f.step}" data-sim="${f.k}" value="${simState[f.k]}"><div class="help">${f.hint}</div></div>`).join('');
-  el('simInputs').querySelectorAll('input[data-sim]').forEach(inp=>{
-    inp.addEventListener('input',()=>{simState[inp.dataset.sim]=Number(inp.value)||0;renderSimOutputs()});
-  });
-}
-
-const simResult=(label,val,base,fmt,goodUp)=>{
-  let delta='';
-  if(base!==undefined&&Number.isFinite(val)&&Number.isFinite(base)){
-    const diff=val-base;
-    if(Math.abs(diff)>1e-9){
-      const up=diff>0,good=goodUp===undefined?null:(up===goodUp);
-      const cls=good===null?'':(good?'pos':'neg');
-      delta=`<span class="sim-delta ${cls}">${up?'▲':'▼'} ${fmt(Math.abs(diff))}</span>`;
-    }
-  }
-  return`<div class="result"><span>${label}</span><b>${Number.isFinite(val)?fmt(val):'—'}</b>${delta}</div>`;
-};
-
-function renderSimOutputs(){
-  const cur=simCompute(simState),base=simCompute(simBase);
-  const roasFmt=v=>v.toFixed(2)+'x';
-  el('simOutputs').innerHTML=
-    simResult('Cliques',cur.clicks,base.clicks,fmtInt,true)+
-    simResult('Vendas (conversões)',cur.conversions,base.conversions,fmtInt,true)+
-    simResult('Receita (GMV)',cur.revenue,base.revenue,fmtMoney,true)+
-    simResult('ROAS',cur.roas,base.roas,roasFmt,true)+
-    simResult('ACOS',cur.acos,base.acos,fmtPct,false)+
-    simResult('CPC',cur.cpc,base.cpc,fmtMoney,false)+
-    simResult('CPA',cur.cpa,base.cpa,fmtMoney,false)+
-    simResult('Lucro estimado',cur.profit,base.profit,fmtMoney,true)+
-    simResult('Margem',cur.margin,base.margin,fmtPct,true);
-  renderSingleSale();
-}
-
 function buildSimulator(){
   if(!adsData&&!prodData){el('simPanel').style.display='none';return}
   el('simPanel').style.display='';
   simBase=buildSimBase();
   simState=Object.assign({},simBase);
   populatePerfProducts();autoMatchProduct();
-  renderSimInputs();renderSimOutputs();renderSingleSale();
+  renderSimTable();renderSingleSale();
 }
 
 function diagnostics(){
@@ -449,7 +474,7 @@ el('adsFileBtn').onclick=()=>el('adsFile').click();
 el('prodFileBtn').onclick=()=>el('prodFile').click();
 el('adsFile').onchange=()=>handleFile(el('adsFile'),el('adsFileStatus'),ADS_MAP,d=>adsData=d,'ads');
 el('prodFile').onchange=()=>handleFile(el('prodFile'),el('prodFileStatus'),PROD_MAP,d=>prodData=d,'prod');
-el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimInputs();renderSimOutputs()}};
+el('simReset').onclick=()=>{if(simBase){simState=Object.assign({},simBase);renderSimTable();renderSingleSale()}};
 el('perfProductSelect').onchange=()=>renderSingleSale();
 
 function showView(v){
