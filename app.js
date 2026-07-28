@@ -62,9 +62,12 @@ async function save(manual){
   if(!p)return false;
   if(!currentUser){if(manual)alert('Faça login para salvar.');return false}
   if(autoSaveTimeout){clearTimeout(autoSaveTimeout);autoSaveTimeout=null}
+  // Defesa: sempre garantir que o user_id salvo é o do usuário logado (RLS bloquearia
+  // qualquer outra coisa, mas assim erramos rápido em vez de dar 401 obscuro).
+  p.user_id=currentUser.id;
   try{
     $('saveBtn').classList.add('loading');
-    if(p.id.startsWith('new-')){p.id=id();p.user_id=currentUser.id;await supabaseClient.createProduct(p)}
+    if(p.id.startsWith('new-')){p.id=id();await supabaseClient.createProduct(p)}
     else{await supabaseClient.updateProduct(p.id,p)}
     products=products.map(x=>x.id===p.id?p:x);
     renderSelectors();
@@ -200,7 +203,20 @@ $('catalogCategory').onchange=renderCatalog;
 $('exportBtn').onclick=()=>download(`painel-precificacao-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify({version:1,exportedAt:new Date().toISOString(),products},null,2),'application/json');
 
 $('importBtn').onclick=()=>$('importFile').click();
-$('importFile').onchange=async e=>{try{let j=JSON.parse(await e.target.files[0].text());if(!Array.isArray(j.products)||!j.products.length)throw 0;products=j.products;selectedId=products[0].id;renderSelectors();writeForm()}catch{alert('Arquivo de dados inválido.')}};
+// Importa produtos de um JSON de backup. IMPORTANTE: reatribui user_id ao usuário logado
+// e força id novo (com prefixo new-) para o próximo save gravar no banco como registro dele.
+// Isso protege contra tentar importar um backup de outra conta e vazar dados/gravar em nome alheio.
+$('importFile').onchange=async e=>{
+  if(!currentUser){alert('Faça login antes de importar.');return}
+  try{
+    let j=JSON.parse(await e.target.files[0].text());
+    if(!Array.isArray(j.products)||!j.products.length)throw 0;
+    products=j.products.map(p=>Object.assign({},p,{id:'new-'+id(),user_id:currentUser.id}));
+    selectedId=products[0].id;
+    renderSelectors();writeForm();
+    alert(`${products.length} produto(s) importado(s) para a sua conta. Clique em Salvar em cada um para gravar no banco.`);
+  }catch{alert('Arquivo de dados inválido.')}
+};
 
 $('exportRoas').onclick=()=>{let rows=[['Cenário','CPA','ACOS %','Lucro por venda','Margem %','ROI produto %','Preço ideal','Ajuste no preço','ROAS mínimo'],...scenarioRows.map(x=>[x.roas,x.cpa,x.acos*100,x.profit,x.margin*100,x.roi*100,x.ideal,x.adjust,x.roasMin])];download(`cenarios-roas-${platform}.csv`,rows.map(r=>r.map(v=>`"${String(typeof v==='number'?(Number.isFinite(v)?v:''):v).replaceAll('"','""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8')};
 

@@ -15,6 +15,24 @@ const PROD_MAP={impressions:['impress'],clicks:['clique','click'],visits:['visit
 
 let adsData=null,prodData=null,adsMeta={},prodMeta={},simBase=null,simState=null;
 
+// Reset de TODO estado efêmero da aba Performance (import de relatórios, meta, simulador).
+// Chamado no logout/troca de sessão para não vazar dados do usuário A para o B no mesmo navegador.
+function resetPerformanceState(){
+  adsData=null;prodData=null;adsMeta={};prodMeta={};simBase=null;simState=null;
+  const clear=id=>{const e=el(id);if(e)e.innerHTML=''};
+  const setStatus=(id,text)=>{const e=el(id);if(e)e.innerHTML=text};
+  setStatus('adsFileStatus','Aguardando arquivo (CSV ou XLSX)');
+  setStatus('prodFileStatus','Aguardando arquivo (CSV ou XLSX)');
+  const meta=el('perfMetaPanel');if(meta)meta.style.display='none';
+  clear('perfMeta');
+  const single=el('singleSalePanel');if(single)single.style.display='none';
+  const sim=el('simPanel');if(sim)sim.style.display='none';
+  const adsK=el('adsKpis');if(adsK)adsK.innerHTML='<article class="kpi"><div class="label">Aguardando relatório de Ads</div><div class="sub">Envie o arquivo para ver as métricas</div></article>';
+  const prodK=el('prodKpis');if(prodK)prodK.innerHTML='<article class="kpi"><div class="label">Aguardando relatório do produto</div><div class="sub">Envie o arquivo para ver as métricas</div></article>';
+  const diag=el('perfDiagnosis');if(diag)diag.innerHTML='<p class="help">Envie ao menos um arquivo para gerar diagnósticos automáticos (ex.: CTR baixo → melhorar o anúncio).</p>';
+}
+window.resetPerformanceState=resetPerformanceState;
+
 // Rótulos que vêm como par "rótulo,valor" na mesma linha (metadados de cabeçalho)
 const META_WANT={
   produto:['nome do produto / anuncio','nome do produto/anuncio','nome do produto','produto'],
@@ -608,7 +626,7 @@ function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
 
 let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlySaveTimers={},monthlyExpensesTimer=null,monthlyMonths=[];
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];AdsSummary.reset();renderAdsSummary()};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];AdsSummary.reset();resetPerformanceState();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
