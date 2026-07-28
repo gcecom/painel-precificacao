@@ -130,10 +130,10 @@ const supabaseClient = {
   },
 
   // ---------- Produtos (isolados por user_id via RLS + filtro no cliente) ----------
+  // Propaga o erro de propósito: quem chama precisa saber que a leitura falhou,
+  // senão o app confunde "falhou" com "não tem nenhum produto" e sobrescreve o catálogo.
   async getProducts(userId) {
-    try {
-      return await this.request(`/products?user_id=eq.${userId}&order=created_at.desc`);
-    } catch (e) { console.error('Erro ao carregar produtos:', e); return [] }
+    return this.request(`/products?user_id=eq.${userId}&order=created_at.desc`);
   },
 
   async getProduct(id, userId) {
@@ -141,43 +141,54 @@ const supabaseClient = {
   },
 
   async createProduct(product) {
-    return this.request('/products', 'POST', product);
+    const rows = await this.request('/products', 'POST', product, { 'Prefer': 'return=representation' });
+    if (!rows || !rows.length) throw new Error('O produto não foi gravado no banco.');
+    return rows[0];
   },
 
+  // Confere se alguma linha foi mesmo alterada. Sem isso um PATCH que não acerta
+  // nenhuma linha volta 204 e o painel diz "salvo" sem ter salvado nada.
   async updateProduct(id, updates) {
-    return this.request(`/products?id=eq.${id}`, 'PATCH', updates);
+    const rows = await this.request(`/products?id=eq.${id}`, 'PATCH', updates, { 'Prefer': 'return=representation' });
+    if (!rows || !rows.length) throw new Error('Nenhuma linha foi atualizada — o produto pode ter sido removido ou pertencer a outro login.');
+    return rows[0];
   },
 
   async deleteProduct(id) {
     return this.request(`/products?id=eq.${id}`, 'DELETE');
   },
 
-  // ---------- Resultado mensal (por usuário + marketplace + produto) ----------
-  async getMonthlySales(userId, platform) {
-    try {
-      return await this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}`);
-    } catch (e) { console.error('Erro ao carregar resultado mensal:', e); return [] }
+  // ---------- Resultado mensal (por usuário + marketplace + produto + mês) ----------
+  async getMonthlySales(userId, platform, month) {
+    return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}`);
   },
 
   async upsertMonthlySale(row) {
-    return this.request('/monthly_sales?on_conflict=user_id,platform,product_id', 'POST', row, {
+    return this.request('/monthly_sales?on_conflict=user_id,platform,product_id,month', 'POST', row, {
       'Prefer': 'resolution=merge-duplicates,return=minimal',
     });
   },
 
-  async deleteMonthlySales(userId, platform) {
-    return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}`, 'DELETE');
+  async deleteMonthlySales(userId, platform, month) {
+    return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}`, 'DELETE');
   },
 
-  async getMonthlyMeta(userId, platform) {
+  // Meses que já têm lançamento — alimenta a lista de meses salvos para consulta
+  async listMonthlyMonths(userId) {
     try {
-      const rows = await this.request(`/monthly_meta?user_id=eq.${userId}&platform=eq.${platform}&limit=1`);
-      return rows && rows[0] ? rows[0] : null;
-    } catch (e) { return null }
+      const rows = await this.request(`/monthly_sales?user_id=eq.${userId}&select=month`);
+      return [...new Set((rows || []).map(r => r.month).filter(Boolean))].sort().reverse();
+    } catch (e) { return [] }
   },
 
-  async upsertMonthlyMeta(row) {
-    return this.request('/monthly_meta?on_conflict=user_id,platform', 'POST', row, {
+  // ---------- Gastos gerais do mês (valor único do negócio, não por marketplace) ----------
+  async getMonthlyExpenses(userId, month) {
+    const rows = await this.request(`/monthly_expenses?user_id=eq.${userId}&month=eq.${month}&limit=1`);
+    return rows && rows[0] ? rows[0] : null;
+  },
+
+  async upsertMonthlyExpenses(row) {
+    return this.request('/monthly_expenses?on_conflict=user_id,month', 'POST', row, {
       'Prefer': 'resolution=merge-duplicates,return=minimal',
     });
   },

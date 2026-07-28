@@ -1,6 +1,7 @@
 'use strict';
 
-const PLATFORMS={shopee:{name:'Shopee',brand:'#ee4d2d',ink:'#fff',accent:'#ee4d2d',commission:14,fixed:0,feeMode:'manual',tax:8},magalu:{name:'Magalu',brand:'#0086ff',ink:'#fff',accent:'#0086ff',commission:16,fixed:0,feeMode:'manual',tax:8},mercadolivre:{name:'Mercado Livre',brand:'#ffe600',ink:'#24324a',accent:'#3483fa',commission:12.5,fixed:0,feeMode:'classic',tax:8},amazon:{name:'Amazon',brand:'#131921',ink:'#fff',accent:'#ff9900',commission:15,fixed:0,feeMode:'manual',tax:8}};
+const DEFAULT_TAX=9.5;
+const PLATFORMS={shopee:{name:'Shopee',brand:'#ee4d2d',ink:'#fff',accent:'#ee4d2d',commission:14,fixed:0,feeMode:'manual',tax:DEFAULT_TAX},magalu:{name:'Magalu',brand:'#0086ff',ink:'#fff',accent:'#0086ff',commission:16,fixed:0,feeMode:'manual',tax:DEFAULT_TAX},mercadolivre:{name:'Mercado Livre',brand:'#ffe600',ink:'#24324a',accent:'#3483fa',commission:12.5,fixed:0,feeMode:'classic',tax:DEFAULT_TAX},amazon:{name:'Amazon',brand:'#131921',ink:'#fff',accent:'#ff9900',commission:15,fixed:0,feeMode:'manual',tax:DEFAULT_TAX}};
 const THEME_STORAGE='painel_tema_2026';let platform='mercadolivre',selectedId='',products=[],currentUser=null;let scenarioRows=[];let autoSaveTimeout=null,isSaving=false;
 
 const money=v=>Number.isFinite(v)?new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v):'—';
@@ -53,15 +54,59 @@ function renderCatalog(){let q=$('catalogSearch').value.toLowerCase(),cat=$('cat
 
 function selectProduct(v){selectedId=v;$('productSelect').value=v;writeForm()}
 
-async function save(){let{p}=readForm();if(!p||!currentUser)return;try{$('saveBtn').classList.add('loading');if(p.id.startsWith('new-')){p.id=id();p.user_id=currentUser.id;await supabaseClient.createProduct(p)}else{await supabaseClient.updateProduct(p.id,p)}products=products.map(x=>x.id===p.id?p:x);renderSelectors();$('editStatus').textContent='Produto salvo ✓';setTimeout(()=>$('editStatus').textContent='Editando produto',1200)}catch(e){console.error('Erro ao salvar:',e)}finally{$('saveBtn').classList.remove('loading')}}
+function setEditStatus(kind,text){$('editStatus').className='status '+kind;$('editStatus').textContent=text}
 
-function autoSave(){if(autoSaveTimeout)clearTimeout(autoSaveTimeout);if(isSaving)return;$('editStatus').textContent='Salvando...';autoSaveTimeout=setTimeout(async()=>{isSaving=true;try{await save()}catch(e){console.error('Auto-save error:',e)}finally{isSaving=false}},1500)}
+// manual=true (clique no botão Salvar) avisa em alerta se falhar; o auto-save só marca em vermelho.
+async function save(manual){
+  let{p}=readForm();
+  if(!p)return false;
+  if(!currentUser){if(manual)alert('Faça login para salvar.');return false}
+  if(autoSaveTimeout){clearTimeout(autoSaveTimeout);autoSaveTimeout=null}
+  try{
+    $('saveBtn').classList.add('loading');
+    if(p.id.startsWith('new-')){p.id=id();p.user_id=currentUser.id;await supabaseClient.createProduct(p)}
+    else{await supabaseClient.updateProduct(p.id,p)}
+    products=products.map(x=>x.id===p.id?p:x);
+    renderSelectors();
+    setEditStatus('good','Produto salvo ✓');
+    setTimeout(()=>setEditStatus('neutral','Editando produto'),1500);
+    return true;
+  }catch(e){
+    console.error('Erro ao salvar:',e);
+    setEditStatus('bad','Não salvou — veja o erro');
+    if(manual)alert('Não foi possível salvar o produto:\n\n'+e.message);
+    return false;
+  }finally{$('saveBtn').classList.remove('loading')}
+}
+
+function autoSave(){if(autoSaveTimeout)clearTimeout(autoSaveTimeout);if(isSaving)return;setEditStatus('neutral','Salvando...');autoSaveTimeout=setTimeout(async()=>{isSaving=true;try{await save(false)}catch(e){console.error('Auto-save error:',e)}finally{isSaving=false}},1500)}
 
 function setTheme(theme){theme=theme==='dark'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem(THEME_STORAGE,theme)}catch{}let dark=theme==='dark';$('lightThemeBtn').classList.toggle('active',!dark);$('darkThemeBtn').classList.toggle('active',dark);$('lightThemeBtn').setAttribute('aria-pressed',String(!dark));$('darkThemeBtn').setAttribute('aria-pressed',String(dark))}
 
 function applyTheme(){let x=PLATFORMS[platform];document.documentElement.dataset.platform=platform;document.documentElement.style.setProperty('--brand',x.brand);document.documentElement.style.setProperty('--brand-ink',x.ink);document.documentElement.style.setProperty('--accent',x.accent);document.querySelectorAll('.platform-btn').forEach(b=>b.classList.toggle('active',b.dataset.platform===platform));writeForm()}
 
-async function loadProducts(){if(!currentUser)return;try{products=await supabaseClient.getProducts(currentUser.id);if(products.length===0){products=[{id:id(),name:'Meu primeiro produto',sku:'',cost:0,category:'Outros',user_id:currentUser.id,channels:Object.fromEntries(Object.keys(PLATFORMS).map(k=>[k,channelDefaults(k)]))}];await supabaseClient.createProduct(products[0])}selectedId=products[0]?.id||'';renderSelectors();writeForm()}catch(e){console.error('Erro ao carregar produtos:',e)}}
+// Se a leitura falhar (token expirado, rede, RLS), NÃO trate como "catálogo vazio":
+// criar o produto inicial por cima nesse caso faria o painel parecer que perdeu tudo.
+async function loadProducts(){
+  if(!currentUser)return;
+  let list;
+  try{list=await supabaseClient.getProducts(currentUser.id)}
+  catch(e){
+    console.error('Erro ao carregar produtos:',e);
+    $('editStatus').className='status bad';
+    $('editStatus').textContent='Erro ao carregar';
+    alert('Não foi possível carregar seus produtos:\n'+e.message+'\n\nNada foi apagado — recarregue a página para tentar de novo.');
+    return;
+  }
+  products=list||[];
+  if(products.length===0){
+    products=[{id:id(),name:'Meu primeiro produto',sku:'',cost:0,category:'Outros',user_id:currentUser.id,channels:Object.fromEntries(Object.keys(PLATFORMS).map(k=>[k,channelDefaults(k)]))}];
+    try{await supabaseClient.createProduct(products[0])}catch(e){console.error('Erro ao criar produto inicial:',e)}
+  }
+  selectedId=products[0]?.id||'';
+  renderSelectors();
+  writeForm();
+}
 
 function resetMonthlyState(){try{if(typeof window.resetMonthlyCache==='function')window.resetMonthlyCache()}catch(e){}}
 
@@ -138,7 +183,7 @@ $('lightThemeBtn').onclick=()=>setTheme('light');$('darkThemeBtn').onclick=()=>s
 fieldIds.forEach(k=>{let e=$(k);if(e)e.addEventListener('input',()=>{readForm();syncLabels();renderAll();autoSave()})});
 
 $('productSelect').onchange=e=>selectProduct(e.target.value);
-$('saveBtn').onclick=save;
+$('saveBtn').onclick=()=>save(true);
 $('newBtn').onclick=()=>{let p={id:'new-'+id(),name:'Novo produto',sku:'',cost:0,category:'Outros',user_id:currentUser?.id,channels:Object.fromEntries(Object.keys(PLATFORMS).map(k=>[k,channelDefaults(k)]))};products.unshift(p);selectedId=p.id;renderSelectors();writeForm()};
 
 $('duplicateBtn').onclick=()=>{let p=structuredClone(current());p.id='new-'+id();p.name+=' (cópia)';products.unshift(p);selectedId=p.id;renderSelectors();writeForm()};

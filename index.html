@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Multiplataforma de Precificação 2026</title>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 <nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button></div></nav>
@@ -59,9 +59,11 @@
 <section id="monthlyView" class="content hidden">
 <div class="overview"><h2 id="monthlyTitle">Resultado mensal — Mercado Livre</h2><p>Lance as <b>unidades vendidas</b> e o <b>preço médio</b> de cada produto no mês. O painel calcula receita, comissão, taxas, imposto, lucro e margem usando os custos cadastrados. Troque o marketplace na barra superior.</p></div>
 <div class="monthly-toolbar">
-  <div class="field"><label>Mês / referência</label><input id="monthlyLabel" placeholder="Ex.: Janeiro 2026"></div>
-  <div class="monthly-actions"><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar mês deste marketplace</button></div>
+  <div class="field"><label>Mês de referência</label><input id="monthlyMonth" type="month"><div class="help" id="monthlyMonthHint">Cada mês fica salvo separadamente</div></div>
+  <div class="field"><label>Gastos gerais do mês (R$)</label><input id="monthlyExpenses" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único do negócio (vale para todos os marketplaces)</div></div>
+  <div class="monthly-actions"><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
 </div>
+<div class="monthly-months" id="monthlyMonthList"></div>
 <section class="kpis" id="monthlyKpis"></section>
 <section class="panel"><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyTable"></table></div></div></section>
 </section>
@@ -159,9 +161,9 @@
   </div>
 </div>
 
-<script src="supabase.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="supabase.js?v=20"></script>
+<script src="app.js?v=20"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=18"></script>
+<script src="performance.js?v=20"></script>
 </body>
 </html>

@@ -25,7 +25,7 @@ Painel web de precificação e performance para e-commerce multiplataforma (Merc
 1. **Cliente:** `supabase.js` sempre manda o **token JWT do usuário logado** (não a anon key) no header `Authorization` de toda requisição de dados. Sem isso, o Postgres não sabe quem está perguntando e o RLS não tem como filtrar.
 2. **Banco (RLS):** toda tabela de dados do usuário tem Row Level Security ativado com policies `auth.uid() = user_id` para select/insert/update/delete. **Isso só pode ser configurado via SQL Editor do Supabase** (a anon key não tem permissão de DDL) — não há como uma sessão de código rodar isso sozinha; sempre que uma tabela nova for criada, o SQL de RLS precisa ser colado manualmente pelo usuário no dashboard do Supabase.
 
-Tabelas atuais: `products` (contém `channels` como JSONB embutido — não existe tabela `product_channels` separada, apesar de código morto antigo sugerir isso), `monthly_sales`, `monthly_meta`.
+Tabelas atuais: `products` (contém `channels` como JSONB embutido — não existe tabela `product_channels` separada, apesar de código morto antigo sugerir isso), `monthly_sales` (um lançamento por produto+marketplace+**mês**, campo `month` formato `YYYY-MM`; inclui `ads_unit` = gasto de Ads por venda, preenchido à mão), `monthly_expenses` (gastos gerais do mês, valor único do negócio — não é por marketplace). A antiga `monthly_meta` (rótulo de texto livre do mês) foi substituída pelo campo `month` estruturado. Ver `sql/resultado_mensal_por_mes.sql`.
 
 **Cuidado ao reusar padrões antigos deste projeto:** em versões anteriores, o RLS já foi desabilitado temporariamente para destravar uma importação em massa de CSV (contornando a lentidão de policies em insert). Se isso for necessário de novo, **desabilitar → importar → reabilitar com o mesmo script de policies**, nunca deixar desabilitado.
 
@@ -34,7 +34,8 @@ Tabelas atuais: `products` (contém `channels` como JSONB embutido — não exis
 | Dado | Local |
 |---|---|
 | Produtos, custos, canais/comissões | Supabase (`products`) |
-| Resultado Mensal (unidades vendidas, preço médio) | Supabase (`monthly_sales`, `monthly_meta`) |
+| Resultado Mensal (unidades, preço médio, Ads/venda por mês) | Supabase (`monthly_sales`) |
+| Gastos gerais do mês (único, todos os marketplaces) | Supabase (`monthly_expenses`) |
 | Tema (claro/escuro) | localStorage (`painel_tema_2026`) — não sensível |
 | Token de sessão | localStorage (`supabase_token`, `supabase_refresh_token`) |
 

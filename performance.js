@@ -498,23 +498,31 @@ function curPlatform(){try{return platform}catch(e){return'mercadolivre'}}
 function platformName(){try{return PLATFORMS[curPlatform()].name}catch(e){return''}}
 function curUserId(){try{return currentUser&&currentUser.id}catch(e){return null}}
 
-let monthlyCache={},monthlyLabelCache='',monthlyLoadedFor=null,monthlySaveTimers={},monthlyLabelTimer=null;
+let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlySaveTimers={},monthlyExpensesTimer=null,monthlyMonths=[];
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyLoadedFor=null};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[]};
 
-// Busca as vendas do mês + o rótulo (ex.: "Janeiro 2026") do Supabase, só quando muda usuário/plataforma
+const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+// "2026-06" -> "06/2026", para exibição
+const monthLabel=m=>/^\d{4}-\d{2}$/.test(m||'')?m.slice(5)+'/'+m.slice(0,4):'—';
+function curMonth(){const v=el('monthlyMonth')&&el('monthlyMonth').value;return /^\d{4}-\d{2}$/.test(v)?v:thisMonth()}
+
+// Busca os lançamentos DAQUELE mês + os gastos gerais do mês.
+// A chave inclui o mês: trocar de mês recarrega em vez de mostrar dado do mês anterior.
 async function ensureMonthlyLoaded(){
-  const uid=curUserId(),plat=curPlatform();
+  const uid=curUserId(),plat=curPlatform(),mo=curMonth();
   if(!uid)return false;
-  const key=uid+'|'+plat;
+  const key=uid+'|'+plat+'|'+mo;
   if(monthlyLoadedFor===key)return true;
-  const[rows,meta]=await Promise.all([
-    supabaseClient.getMonthlySales(uid,plat),
-    supabaseClient.getMonthlyMeta(uid,plat)
+  const[rows,exp,months]=await Promise.all([
+    supabaseClient.getMonthlySales(uid,plat,mo),
+    supabaseClient.getMonthlyExpenses(uid,mo),
+    supabaseClient.listMonthlyMonths(uid)
   ]);
   monthlyCache={};
-  (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:r.units,price:r.price}});
-  monthlyLabelCache=(meta&&meta.label)||'';
+  (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:r.units,price:r.price,ads:r.ads_unit}});
+  monthlyExpenses=exp&&exp.amount!=null?+exp.amount:0;
+  monthlyMonths=months||[];
   monthlyLoadedFor=key;
   return true;
 }
@@ -529,48 +537,90 @@ function monthlyUnit(p,price){
   return{comm:0,frete:0,tax:0,cost:p.cost||0,profit:price-(p.cost||0),gross:price};
 }
 
+// "ads" = quanto foi gasto de anúncio POR VENDA daquele produto no mês (preenchido à mão,
+// porque nem toda venda vem do cenário simulado na aba Precificação).
 function monthlyRowsData(){
   return savedProducts().map(p=>{
     const s=monthlyCache[p.id]||{};
     const ch=(p.channels&&p.channels[curPlatform()])||{};
     const units=+s.units||0;
     const price=s.price!=null&&s.price!==''?+s.price:(ch.price||0);
+    const adsUnit=+s.ads||0;
     const u=monthlyUnit(p,price);
     const rev=units*price;
-    return{p,units,price,rev,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,profit:u.profit*units,margin:price>0?u.profit/price:NaN};
+    const adsTotal=adsUnit*units;
+    const profitUnit=u.profit-adsUnit;
+    return{p,units,price,adsUnit,rev,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,ads:adsTotal,profit:profitUnit*units,margin:price>0?profitUnit/price:NaN};
   });
+}
+
+function monthlySaveError(e){
+  console.error('Erro ao salvar resultado mensal:',e);
+  const h=el('monthlyMonthHint');
+  if(h){h.textContent='Não salvou: '+e.message;h.style.color='var(--bad)'}
+}
+function monthlySaveOk(){
+  const h=el('monthlyMonthHint');
+  if(h){h.textContent='Cada mês fica salvo separadamente';h.style.color=''}
 }
 
 // Salva com debounce (800ms de inatividade), como o auto-save da aba Precificação
 function scheduleMonthlySave(productId){
   clearTimeout(monthlySaveTimers[productId]);
+  const mo=curMonth();
   monthlySaveTimers[productId]=setTimeout(async()=>{
     const uid=curUserId();if(!uid)return;
-    const s=monthlyCache[productId]||{units:0,price:0};
-    try{await supabaseClient.upsertMonthlySale({user_id:uid,platform:curPlatform(),product_id:productId,units:+s.units||0,price:+s.price||0})}
-    catch(e){console.error('Erro ao salvar resultado mensal:',e)}
+    const s=monthlyCache[productId]||{units:0,price:0,ads:0};
+    try{
+      await supabaseClient.upsertMonthlySale({user_id:uid,platform:curPlatform(),product_id:productId,month:mo,units:+s.units||0,price:+s.price||0,ads_unit:+s.ads||0});
+      monthlySaveOk();
+      if(!monthlyMonths.includes(mo)){monthlyMonths.push(mo);monthlyMonths.sort().reverse();renderMonthList()}
+    }
+    catch(e){monthlySaveError(e)}
   },800);
 }
 
-function scheduleMonthlyLabelSave(){
-  clearTimeout(monthlyLabelTimer);
-  monthlyLabelTimer=setTimeout(async()=>{
+// Gastos gerais: um valor por mês, do negócio inteiro (não por marketplace)
+function scheduleExpensesSave(){
+  clearTimeout(monthlyExpensesTimer);
+  const mo=curMonth();
+  monthlyExpensesTimer=setTimeout(async()=>{
     const uid=curUserId();if(!uid)return;
-    try{await supabaseClient.upsertMonthlyMeta({user_id:uid,platform:curPlatform(),label:monthlyLabelCache})}
-    catch(e){console.error('Erro ao salvar rótulo do mês:',e)}
+    try{await supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0});monthlySaveOk()}
+    catch(e){monthlySaveError(e)}
   },800);
+}
+
+// Meses que já têm lançamento viram atalhos clicáveis para consulta rápida
+function renderMonthList(){
+  const box=el('monthlyMonthList');
+  if(!box)return;
+  const cur=curMonth();
+  box.innerHTML=monthlyMonths.length
+    ?'<span class="mo-chips-label">Meses salvos:</span>'+monthlyMonths.map(m=>`<button type="button" class="chip${m===cur?' active':''}" data-mo="${m}">${monthLabel(m)}</button>`).join('')
+    :'';
+  box.querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{
+    el('monthlyMonth').value=b.dataset.mo;monthlyLoadedFor=null;renderMonthly();
+  });
 }
 
 async function renderMonthly(){
   const tb=el('monthlyTable');
-  el('monthlyTitle').textContent='Resultado mensal — '+platformName();
+  if(!el('monthlyMonth').value)el('monthlyMonth').value=thisMonth();
+  el('monthlyTitle').textContent='Resultado mensal — '+platformName()+' · '+monthLabel(curMonth());
   if(!curUserId()){tb.innerHTML='<tbody><tr><td style="padding:16px">Faça login para lançar o resultado mensal.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
   tb.innerHTML='<tbody><tr><td style="padding:16px">Carregando...</td></tr></tbody>';
-  await ensureMonthlyLoaded();
-  if(el('monthlyLabel').value!==monthlyLabelCache)el('monthlyLabel').value=monthlyLabelCache;
+  try{await ensureMonthlyLoaded()}
+  catch(e){
+    console.error('Erro ao carregar resultado mensal:',e);
+    tb.innerHTML=`<tbody><tr><td style="padding:16px">Não foi possível carregar este mês: ${esc(e.message)}<br><br>Se a mensagem falar em coluna <b>month</b> ou <b>ads_unit</b>, falta rodar o SQL <code>sql/resultado_mensal_por_mes.sql</code> no Supabase.</td></tr></tbody>`;
+    el('monthlyKpis').innerHTML='';return;
+  }
+  renderMonthList();
+  if(el('monthlyExpenses').value!==String(monthlyExpenses||''))el('monthlyExpenses').value=monthlyExpenses||'';
   const list=savedProducts();
   if(!list.length){tb.innerHTML='<tbody><tr><td style="padding:16px">Cadastre produtos na aba <b>Precificação</b> para lançar as vendas do mês.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
-  const head='<thead><tr><th>Produto</th><th>Custo compra</th><th>Unid. vendidas</th><th>Preço médio</th><th>Receita bruta</th><th>Comissão + tarifas</th><th>Frete / outros</th><th>Imposto</th><th>Custo produtos</th><th>Lucro líquido</th><th>% margem</th></tr></thead>';
+  const head='<thead><tr><th>Produto</th><th>Custo compra</th><th>Unid. vendidas</th><th>Preço médio</th><th>Ads por venda</th><th>Receita bruta</th><th>Comissão + tarifas</th><th>Frete / outros</th><th>Imposto</th><th>Custo produtos</th><th>Ads total</th><th>Lucro líquido</th><th>% margem</th></tr></thead>';
   const rows=monthlyRowsData();
   let body='';
   for(const r of rows){
@@ -579,11 +629,13 @@ async function renderMonthly(){
       <td>${fmtMoney(r.p.cost||0)}</td>
       <td><input type="number" min="0" step="1" data-mo="units" data-id="${r.p.id}" value="${r.units||''}" placeholder="0"></td>
       <td><input type="number" min="0" step=".01" data-mo="price" data-id="${r.p.id}" value="${r.price||''}" placeholder="0,00"></td>
+      <td><input type="number" min="0" step=".01" data-mo="ads" data-id="${r.p.id}" value="${r.adsUnit||''}" placeholder="0,00"></td>
       <td data-c="rev">${fmtMoney(r.rev)}</td>
       <td data-c="comm">${fmtMoney(r.comm)}</td>
       <td data-c="frete">${fmtMoney(r.frete)}</td>
       <td data-c="tax">${fmtMoney(r.tax)}</td>
       <td data-c="cost">${fmtMoney(r.cost)}</td>
+      <td data-c="ads">${fmtMoney(r.ads)}</td>
       <td data-c="profit" class="${r.profit>=0?'pos':'neg'}">${fmtMoney(r.profit)}</td>
       <td data-c="margin">${fmtPct(r.margin)}</td>
     </tr>`;
@@ -601,18 +653,22 @@ async function renderMonthly(){
   renderMonthlyKpis(rows);
 }
 
+function monthlyTotals(rows){
+  return rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,comm:a.comm+r.comm,frete:a.frete+r.frete,tax:a.tax+r.tax,cost:a.cost+r.cost,ads:a.ads+r.ads,profit:a.profit+r.profit}),{units:0,rev:0,comm:0,frete:0,tax:0,cost:0,ads:0,profit:0});
+}
+
 function monthlyFootHTML(rows){
-  const t=rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,comm:a.comm+r.comm,frete:a.frete+r.frete,tax:a.tax+r.tax,cost:a.cost+r.cost,profit:a.profit+r.profit}),{units:0,rev:0,comm:0,frete:0,tax:0,cost:0,profit:0});
+  const t=monthlyTotals(rows);
   const margin=t.rev>0?t.profit/t.rev:NaN;
-  return`<tr class="mo-total"><td>TOTAL</td><td></td><td data-t="units">${fmtInt(t.units)}</td><td></td><td data-t="rev">${fmtMoney(t.rev)}</td><td data-t="comm">${fmtMoney(t.comm)}</td><td data-t="frete">${fmtMoney(t.frete)}</td><td data-t="tax">${fmtMoney(t.tax)}</td><td data-t="cost">${fmtMoney(t.cost)}</td><td data-t="profit" class="${t.profit>=0?'pos':'neg'}">${fmtMoney(t.profit)}</td><td data-t="margin">${fmtPct(margin)}</td></tr>`;
+  return`<tr class="mo-total"><td>TOTAL</td><td></td><td data-t="units">${fmtInt(t.units)}</td><td></td><td></td><td data-t="rev">${fmtMoney(t.rev)}</td><td data-t="comm">${fmtMoney(t.comm)}</td><td data-t="frete">${fmtMoney(t.frete)}</td><td data-t="tax">${fmtMoney(t.tax)}</td><td data-t="cost">${fmtMoney(t.cost)}</td><td data-t="ads">${fmtMoney(t.ads)}</td><td data-t="profit" class="${t.profit>=0?'pos':'neg'}">${fmtMoney(t.profit)}</td><td data-t="margin">${fmtPct(margin)}</td></tr>`;
 }
 
 function updateMonthly(){
   const tb=el('monthlyTable'),rows=monthlyRowsData();
   for(const r of rows){
-    const tr=tb.querySelector(`tr[data-mid="${r.p.id}"]`);if(!tr)return;
+    const tr=tb.querySelector(`tr[data-mid="${r.p.id}"]`);if(!tr)continue;
     const set=(c,v)=>{const td=tr.querySelector(`td[data-c="${c}"]`);if(td)td.textContent=v};
-    set('rev',fmtMoney(r.rev));set('comm',fmtMoney(r.comm));set('frete',fmtMoney(r.frete));set('tax',fmtMoney(r.tax));set('cost',fmtMoney(r.cost));
+    set('rev',fmtMoney(r.rev));set('comm',fmtMoney(r.comm));set('frete',fmtMoney(r.frete));set('tax',fmtMoney(r.tax));set('cost',fmtMoney(r.cost));set('ads',fmtMoney(r.ads));
     const pt=tr.querySelector('td[data-c="profit"]');if(pt){pt.textContent=fmtMoney(r.profit);pt.className=r.profit>=0?'pos':'neg'}
     set('margin',fmtPct(r.margin));
   }
@@ -621,12 +677,16 @@ function updateMonthly(){
 }
 
 function renderMonthlyKpis(rows){
-  const t=rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,profit:a.profit+r.profit}),{units:0,rev:0,profit:0});
+  const t=monthlyTotals(rows);
   const sku=rows.filter(r=>r.units>0).length,margin=t.rev>0?t.profit/t.rev:NaN;
+  const gerais=+monthlyExpenses||0,liquido=t.profit-gerais;
   el('monthlyKpis').innerHTML=
-    kpi('Faturamento do mês',fmtMoney(t.rev),platformName())+
-    kpi('Lucro líquido do mês',fmtMoney(t.profit),t.profit>=0?'Resultado positivo':'Prejuízo')+
-    kpi('Margem média',fmtPct(margin),'Lucro ÷ faturamento')+
+    kpi('Faturamento do mês',fmtMoney(t.rev),platformName()+' · '+monthLabel(curMonth()))+
+    kpi('Gasto com Ads',fmtMoney(t.ads),t.rev>0?fmtPct(t.ads/t.rev)+' do faturamento':'Somatório da coluna')+
+    kpi('Lucro do marketplace',fmtMoney(t.profit),'Depois das taxas e dos Ads')+
+    kpi('Gastos gerais do mês',fmtMoney(gerais),'Valor único do negócio')+
+    kpi('Lucro líquido final',fmtMoney(liquido),liquido>=0?'Marketplace − gastos gerais':'Prejuízo no mês')+
+    kpi('Margem do marketplace',fmtPct(margin),'Lucro ÷ faturamento')+
     kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`);
 }
 
@@ -643,11 +703,18 @@ function showView(v){
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
 el('tabMonthly').onclick=()=>showView('monthly');
-el('monthlyLabel').oninput=()=>{monthlyLabelCache=el('monthlyLabel').value;scheduleMonthlyLabelSave()};
+// Trocar o mês recarrega os lançamentos daquele mês (os outros meses continuam salvos)
+el('monthlyMonth').onchange=()=>{monthlyLoadedFor=null;renderMonthly()};
+el('monthlyExpenses').oninput=()=>{
+  monthlyExpenses=el('monthlyExpenses').value===''?0:+el('monthlyExpenses').value;
+  const rows=monthlyRowsData();renderMonthlyKpis(rows);
+  scheduleExpensesSave();
+};
 el('monthlyClear').onclick=async()=>{
   const uid=curUserId();if(!uid)return;
-  if(!confirm('Zerar as vendas lançadas deste marketplace?'))return;
-  try{await supabaseClient.deleteMonthlySales(uid,curPlatform());monthlyCache={};monthlyLoadedFor=null;await renderMonthly()}
+  const mo=curMonth();
+  if(!confirm(`Zerar as vendas lançadas de ${platformName()} em ${monthLabel(mo)}?\n\nOs outros meses e marketplaces não são afetados.`))return;
+  try{await supabaseClient.deleteMonthlySales(uid,curPlatform(),mo);monthlyCache={};monthlyLoadedFor=null;await renderMonthly()}
   catch(e){alert('Erro ao zerar: '+e.message)}
 };
 el('monthlyPrint').onclick=()=>window.print();
