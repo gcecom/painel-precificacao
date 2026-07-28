@@ -482,8 +482,23 @@ async function handleFile(input,statusEl,map,assign,which){
     if(which==='ads')adsMeta=meta;else prodMeta=meta;
     statusEl.innerHTML=`<span class="file-ok">✓ ${file.name}</span> — dados carregados`;
     renderMeta();renderAds();renderProd();buildSimulator();renderDiagnostics();
+    // Sugere valores para o Resumo do mês (respeitando edições manuais anteriores)
+    suggestAdsSummaryFromReports();
   }catch(e){statusEl.innerHTML=`<span style="color:var(--bad);font-weight:800">✗ ${e.message}</span>`}
   input.value='';
+}
+
+// Ads → ads_spend + revenue_ads; Produto → revenue_total (Vendas do relatório).
+// NÃO sobrescreve valores que o usuário já editou à mão (AdsSummary.suggest cuida).
+async function suggestAdsSummaryFromReports(){
+  const uid=curUserId();if(!uid)return;
+  await loadAdsSummaryForCurrent();
+  const patch={};
+  if(adsData){if(adsData.spend>0)patch.ads_spend=adsData.spend;if(adsData.revenue>0)patch.revenue_ads=adsData.revenue}
+  if(prodData){if(prodData.revenue>0)patch.revenue_total=prodData.revenue}
+  if(Object.keys(patch).length){
+    AdsSummary.suggest(uid,curPlatform(),curMonth(),patch);
+  }
 }
 
 el('adsFileBtn').onclick=()=>el('adsFile').click();
@@ -498,16 +513,197 @@ function curPlatform(){try{return platform}catch(e){return'mercadolivre'}}
 function platformName(){try{return PLATFORMS[curPlatform()].name}catch(e){return''}}
 function curUserId(){try{return currentUser&&currentUser.id}catch(e){return null}}
 
+// ---------- RESUMO DE ADS: fonte única de ACOS/TACOS, por (usuário+plataforma+mês) ----------
+// Guardado em monthly_ads_summary. Alimenta os cards da aba "Avaliar Anúncio e Produto"
+// (com os inputs manuais) e um card na aba "Resultado mensal", garantindo mesmo número
+// nas duas telas.
+const AdsSummary = (function(){
+  // cache por chave "user|platform|month"; cada valor: {ads_spend,revenue_total,revenue_ads,_manual}
+  const cache={};
+  const timers={};
+  const listeners=[];
+
+  const monthOr=m=>/^\d{4}-\d{2}$/.test(m||'')?m:(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')})();
+  const keyOf=(uid,plat,mo)=>uid+'|'+plat+'|'+mo;
+
+  function empty(){return{ads_spend:0,revenue_total:0,revenue_ads:0,_manual:{ads_spend:false,revenue_total:false,revenue_ads:false}}}
+
+  async function load(uid,plat,mo){
+    mo=monthOr(mo);
+    const key=keyOf(uid,plat,mo);
+    if(cache[key])return cache[key];
+    let row=null;
+    try{row=await supabaseClient.getAdsSummary(uid,plat,mo)}catch(e){console.error('Erro ao carregar resumo Ads:',e)}
+    // qualquer valor > 0 vindo do banco conta como "definido pelo usuário" (protege contra sobrescrita)
+    const rec=empty();
+    if(row){
+      rec.ads_spend=+row.ads_spend||0;
+      rec.revenue_total=+row.revenue_total||0;
+      rec.revenue_ads=+row.revenue_ads||0;
+      rec._manual.ads_spend=rec.ads_spend>0;
+      rec._manual.revenue_total=rec.revenue_total>0;
+      rec._manual.revenue_ads=rec.revenue_ads>0;
+    }
+    cache[key]=rec;
+    return rec;
+  }
+
+  function get(uid,plat,mo){return cache[keyOf(uid,plat,monthOr(mo))]||null}
+
+  function set(uid,plat,mo,field,value,{manual=true}={}){
+    mo=monthOr(mo);
+    const key=keyOf(uid,plat,mo),rec=cache[key]||empty();
+    rec[field]=+value||0;
+    if(manual)rec._manual[field]=true;
+    cache[key]=rec;
+    scheduleSave(uid,plat,mo);
+    notify(uid,plat,mo);
+    return rec;
+  }
+
+  // Preenche automaticamente A PARTIR do relatório de Ads/Produto, sem sobrescrever
+  // o que o usuário já editou à mão (nem valores previamente confirmados manuais).
+  function suggest(uid,plat,mo,{ads_spend,revenue_total,revenue_ads}={}){
+    mo=monthOr(mo);
+    const key=keyOf(uid,plat,mo),rec=cache[key]||empty();
+    let changed=false;
+    for(const [f,v] of [['ads_spend',ads_spend],['revenue_total',revenue_total],['revenue_ads',revenue_ads]]){
+      if(v==null||!(v>0))continue;
+      if(rec._manual[f])continue; // usuário já ajustou: não mexer
+      if(Math.abs(rec[f]-(+v))<1e-6)continue;
+      rec[f]=+v;changed=true;
+    }
+    cache[key]=rec;
+    if(changed){scheduleSave(uid,plat,mo);notify(uid,plat,mo)}
+    return rec;
+  }
+
+  function clearManualFlag(uid,plat,mo,field){
+    mo=monthOr(mo);const rec=cache[keyOf(uid,plat,mo)];
+    if(rec&&rec._manual)rec._manual[field]=false;
+  }
+
+  function scheduleSave(uid,plat,mo){
+    const key=keyOf(uid,plat,mo);
+    clearTimeout(timers[key]);
+    timers[key]=setTimeout(async()=>{
+      const rec=cache[key];if(!rec)return;
+      try{await supabaseClient.upsertAdsSummary({user_id:uid,platform:plat,month:mo,ads_spend:rec.ads_spend,revenue_total:rec.revenue_total,revenue_ads:rec.revenue_ads})}
+      catch(e){console.error('Erro ao salvar resumo Ads:',e);notify(uid,plat,mo,e)}
+    },700);
+  }
+
+  function subscribe(fn){listeners.push(fn);return()=>{const i=listeners.indexOf(fn);if(i>=0)listeners.splice(i,1)}}
+  function notify(uid,plat,mo,err){for(const fn of listeners){try{fn({uid,platform:plat,month:mo,rec:cache[keyOf(uid,plat,mo)],error:err})}catch(e){console.error(e)}}}
+
+  function reset(){for(const k in cache)delete cache[k];for(const k in timers){clearTimeout(timers[k]);delete timers[k]}}
+
+  return{load,get,set,suggest,clearManualFlag,subscribe,reset,empty};
+})();
+
+// helpers de cálculo compartilhados — retornam NaN em vez de Infinity para o formatador
+// exibir "—" naturalmente (evita NaN/Infinity na tela)
+function calcAcos(spend,revAds){return revAds>0?spend/revAds:NaN}
+function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
+
 let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlySaveTimers={},monthlyExpensesTimer=null,monthlyMonths=[];
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[]};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];AdsSummary.reset();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
 const monthLabel=m=>/^\d{4}-\d{2}$/.test(m||'')?m.slice(5)+'/'+m.slice(0,4):'—';
 function curMonth(){const v=el('monthlyMonth')&&el('monthlyMonth').value;return /^\d{4}-\d{2}$/.test(v)?v:thisMonth()}
 
-// Busca os lançamentos DAQUELE mês + os gastos gerais do mês.
+// Um único "mês atual" para as duas abas — troca em uma reflete na outra.
+function syncMonthInputs(v){
+  const val=/^\d{4}-\d{2}$/.test(v||'')?v:thisMonth();
+  const m=el('monthlyMonth'),a=el('adsSummaryMonth');
+  if(m&&m.value!==val)m.value=val;
+  if(a&&a.value!==val)a.value=val;
+}
+
+// ---------- Painel "ACOS e TACOS" na aba Avaliar Anúncio e Produto ----------
+async function loadAdsSummaryForCurrent(){
+  const uid=curUserId();if(!uid)return null;
+  return AdsSummary.load(uid,curPlatform(),curMonth());
+}
+
+function paintAdsSummaryInputs(rec){
+  const set=(id,v)=>{const e=el(id);if(!e)return;const wanted=v>0?String(v):'';if(document.activeElement!==e&&e.value!==wanted)e.value=wanted};
+  const r=rec||AdsSummary.empty();
+  set('adsSpendInput',r.ads_spend);
+  set('revenueTotalInput',r.revenue_total);
+  set('revenueAdsInput',r.revenue_ads);
+}
+
+function renderAdsSummaryKpis(rec){
+  const r=rec||AdsSummary.empty();
+  const acos=calcAcos(r.ads_spend,r.revenue_ads),tacos=calcTacos(r.ads_spend,r.revenue_total);
+  const box=el('adsSummaryKpis');if(!box)return;
+  box.innerHTML=
+    kpi('Gasto com Ads',fmtMoney(r.ads_spend),platformName()+' · '+monthLabel(curMonth()))+
+    kpi('Faturamento total',fmtMoney(r.revenue_total),'Orgânico + Ads')+
+    kpi('Faturamento por Ads',fmtMoney(r.revenue_ads),r.revenue_total>0?fmtPct(r.revenue_ads/r.revenue_total)+' do total':'—')+
+    kpi('ACOS',fmtPct(acos),'Gasto ÷ receita dos Ads')+
+    kpi('TACOS',fmtPct(tacos),'Gasto ÷ faturamento total');
+}
+
+async function renderAdsSummary(){
+  const title=el('adsSummaryTitle');if(title)title.textContent='Resumo do mês — ACOS e TACOS · '+platformName()+' · '+monthLabel(curMonth());
+  syncMonthInputs(curMonth());
+  const uid=curUserId();
+  if(!uid){paintAdsSummaryInputs(null);renderAdsSummaryKpis(null);const st=el('adsSummaryStatus');if(st){st.className='status neutral';st.textContent='Faça login'}return}
+  const rec=await loadAdsSummaryForCurrent();
+  paintAdsSummaryInputs(rec);
+  renderAdsSummaryKpis(rec);
+  const st=el('adsSummaryStatus'),any=rec&&(rec.ads_spend>0||rec.revenue_total>0||rec.revenue_ads>0);
+  if(st){st.className='status '+(any?'good':'neutral');st.textContent=any?'Salvo':'Preencha ou importe'}
+  const hint=el('adsSummaryHint');if(hint)hint.textContent='Estes três valores também aparecem na aba Resultado mensal deste marketplace/mês.';
+}
+
+// Reagir a mudanças vindas do módulo (troca em uma tela reflete na outra)
+AdsSummary.subscribe(({uid,platform:plat,month:mo,error})=>{
+  const uidCur=curUserId(),curPlat=curPlatform(),curMo=curMonth();
+  if(uid!==uidCur||plat!==curPlat||mo!==curMo)return;
+  const rec=AdsSummary.get(uid,plat,mo);
+  paintAdsSummaryInputs(rec);
+  renderAdsSummaryKpis(rec);
+  // Se o Resultado Mensal estiver aberto, atualiza o card TACOS por lá também
+  if(el('monthlyView')&&!el('monthlyView').classList.contains('hidden')){
+    try{renderMonthlyKpis(monthlyRowsData())}catch(e){}
+  }
+  const st=el('adsSummaryStatus');
+  if(st){
+    if(error){st.className='status bad';st.textContent='Não salvou: '+error.message}
+    else if(rec&&(rec.ads_spend>0||rec.revenue_total>0||rec.revenue_ads>0)){st.className='status good';st.textContent='Salvo'}
+  }
+});
+
+function wireAdsSummaryInputs(){
+  const bind=(id,field)=>{
+    const e=el(id);if(!e)return;
+    e.addEventListener('input',()=>{
+      const uid=curUserId();if(!uid)return;
+      const v=e.value===''?0:Number(e.value);
+      if(e.value===''){AdsSummary.clearManualFlag(uid,curPlatform(),curMonth(),field)}
+      AdsSummary.set(uid,curPlatform(),curMonth(),field,v,{manual:true});
+    });
+  };
+  bind('adsSpendInput','ads_spend');
+  bind('revenueTotalInput','revenue_total');
+  bind('revenueAdsInput','revenue_ads');
+  const m=el('adsSummaryMonth');
+  if(m)m.addEventListener('change',()=>{
+    syncMonthInputs(m.value);
+    renderAdsSummary();
+    // Se a aba mensal estiver ativa, também recarrega
+    if(el('monthlyView')&&!el('monthlyView').classList.contains('hidden')){monthlyLoadedFor=null;renderMonthly()}
+  });
+}
+wireAdsSummaryInputs();
+
+// Busca os lançamentos DAQUELE mês + gastos gerais + resumo Ads (fonte única de ACOS/TACOS).
 // A chave inclui o mês: trocar de mês recarrega em vez de mostrar dado do mês anterior.
 async function ensureMonthlyLoaded(){
   const uid=curUserId(),plat=curPlatform(),mo=curMonth();
@@ -517,7 +713,8 @@ async function ensureMonthlyLoaded(){
   const[rows,exp,months]=await Promise.all([
     supabaseClient.getMonthlySales(uid,plat,mo),
     supabaseClient.getMonthlyExpenses(uid,mo),
-    supabaseClient.listMonthlyMonths(uid)
+    supabaseClient.listMonthlyMonths(uid),
+    AdsSummary.load(uid,plat,mo) // popula o cache do resumo Ads (não bloqueia render se falhar dentro)
   ]);
   monthlyCache={};
   (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:r.units,price:r.price,ads:r.ads_unit}});
@@ -680,14 +877,20 @@ function renderMonthlyKpis(rows){
   const t=monthlyTotals(rows);
   const sku=rows.filter(r=>r.units>0).length,margin=t.rev>0?t.profit/t.rev:NaN;
   const gerais=+monthlyExpenses||0,liquido=t.profit-gerais;
+  // ACOS/TACOS vêm do resumo consolidado (mesmos números da aba Performance)
+  const uid=curUserId(),summary=uid?AdsSummary.get(uid,curPlatform(),curMonth()):null;
+  const spend=summary?summary.ads_spend:0,revTotal=summary?summary.revenue_total:0,revAds=summary?summary.revenue_ads:0;
+  const acos=calcAcos(spend,revAds),tacos=calcTacos(spend,revTotal);
   el('monthlyKpis').innerHTML=
     kpi('Faturamento do mês',fmtMoney(t.rev),platformName()+' · '+monthLabel(curMonth()))+
-    kpi('Gasto com Ads',fmtMoney(t.ads),t.rev>0?fmtPct(t.ads/t.rev)+' do faturamento':'Somatório da coluna')+
+    kpi('Gasto com Ads (por venda)',fmtMoney(t.ads),t.rev>0?fmtPct(t.ads/t.rev)+' do faturamento':'Somatório da coluna')+
     kpi('Lucro do marketplace',fmtMoney(t.profit),'Depois das taxas e dos Ads')+
     kpi('Gastos gerais do mês',fmtMoney(gerais),'Valor único do negócio')+
     kpi('Lucro líquido final',fmtMoney(liquido),liquido>=0?'Marketplace − gastos gerais':'Prejuízo no mês')+
     kpi('Margem do marketplace',fmtPct(margin),'Lucro ÷ faturamento')+
-    kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`);
+    kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`)+
+    kpi('ACOS',fmtPct(acos),spend>0||revAds>0?'Gasto ÷ receita dos Ads':'Preencha na aba Avaliar Anúncio')+
+    kpi('TACOS',fmtPct(tacos),spend>0||revTotal>0?'Gasto ÷ faturamento total':'Preencha na aba Avaliar Anúncio');
 }
 
 function showView(v){
@@ -697,14 +900,14 @@ function showView(v){
   el('tabPricing').classList.toggle('active',v==='pricing');
   el('tabPerformance').classList.toggle('active',v==='perf');
   el('tabMonthly').classList.toggle('active',v==='monthly');
-  if(v==='perf'&&simState){populatePerfProducts();renderSimTable();renderSingleSale()}
+  if(v==='perf'){if(simState){populatePerfProducts();renderSimTable();renderSingleSale()}renderAdsSummary()}
   if(v==='monthly')renderMonthly();
 }
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
 el('tabMonthly').onclick=()=>showView('monthly');
 // Trocar o mês recarrega os lançamentos daquele mês (os outros meses continuam salvos)
-el('monthlyMonth').onchange=()=>{monthlyLoadedFor=null;renderMonthly()};
+el('monthlyMonth').onchange=()=>{syncMonthInputs(el('monthlyMonth').value);monthlyLoadedFor=null;renderMonthly();renderAdsSummary()};
 el('monthlyExpenses').oninput=()=>{
   monthlyExpenses=el('monthlyExpenses').value===''?0:+el('monthlyExpenses').value;
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
@@ -718,9 +921,10 @@ el('monthlyClear').onclick=async()=>{
   catch(e){alert('Erro ao zerar: '+e.message)}
 };
 el('monthlyPrint').onclick=()=>window.print();
-// Trocar de plataforma recalcula a venda e o fechamento mensal (sem sobrescrever o handler do app.js)
+// Trocar de plataforma recalcula a venda, o fechamento mensal e o resumo Ads (todos por marketplace)
 document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{
   if(simState){renderSimTable();renderSingleSale()}
-  if(!el('monthlyView').classList.contains('hidden'))renderMonthly();
+  if(!el('monthlyView').classList.contains('hidden')){monthlyLoadedFor=null;renderMonthly()}
+  if(!el('performanceView').classList.contains('hidden'))renderAdsSummary();
 }));
 })();

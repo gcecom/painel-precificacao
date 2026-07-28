@@ -192,4 +192,16 @@ const supabaseClient = {
       'Prefer': 'resolution=merge-duplicates,return=minimal',
     });
   },
+
+  // ---------- Resumo de Ads por marketplace + mês (fonte única de ACOS/TACOS) ----------
+  async getAdsSummary(userId, platform, month) {
+    const rows = await this.request(`/monthly_ads_summary?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}&limit=1`);
+    return rows && rows[0] ? rows[0] : null;
+  },
+
+  async upsertAdsSummary(row) {
+    return this.request('/monthly_ads_summary?on_conflict=user_id,platform,month', 'POST', row, {
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
+    });
+  },
 };

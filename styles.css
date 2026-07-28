@@ -5,3 +5,8 @@
 .mo-chips-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .monthly-toolbar .field{max-width:260px}
 @media print{.monthly-months{display:none!important}}
+.ads-summary-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.ads-summary-form .field{margin:0}
+.ads-summary-form input{width:100%}
+@media(max-width:900px){.ads-summary-form{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.ads-summary-form{grid-template-columns:1fr}}
