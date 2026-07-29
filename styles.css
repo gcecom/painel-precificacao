@@ -46,3 +46,10 @@ button,.btn,.chip{min-height:38px}
   .kpi .value{font-size:18px}
   #pageTitle{font-size:18px}
 }
+
+/* Correção: grid não pode esticar até a largura intrínseca da tabela.
+   Sem minmax(0,1fr)/min-width:0 a coluna cresce e arrasta todos os irmãos. */
+.content{grid-template-columns:minmax(0,1fr)}
+.content>*,#performanceView>*,#monthlyView>*{min-width:0;max-width:100%}
+.panel,.panel-body,.overview,.monthly-toolbar{min-width:0;max-width:100%}
+.table-wrap{max-width:100%;overflow-x:auto}
