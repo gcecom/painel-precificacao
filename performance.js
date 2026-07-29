@@ -687,9 +687,13 @@ AdsSummary.subscribe(({uid,platform:plat,month:mo,error})=>{
   const rec=AdsSummary.get(uid,plat,mo);
   paintAdsSummaryInputs(rec);
   renderAdsSummaryKpis(rec);
-  // Se o Resultado Mensal estiver aberto, atualiza o card TACOS por lá também
+  // Se o Resultado Mensal estiver aberto, atualiza o card e o input do gasto real
   if(el('monthlyView')&&!el('monthlyView').classList.contains('hidden')){
-    try{renderMonthlyKpis(monthlyRowsData())}catch(e){}
+    try{
+      const inp=el('monthlyAdsSpend'),v=rec?+rec.ads_spend||0:0;
+      if(inp&&document.activeElement!==inp&&inp.value!==String(v||''))inp.value=v||'';
+      renderMonthlyKpis(monthlyRowsData());
+    }catch(e){}
   }
   const st=el('adsSummaryStatus');
   if(st){
@@ -832,7 +836,11 @@ async function renderMonthly(){
     el('monthlyKpis').innerHTML='';return;
   }
   renderMonthList();
+  await loadAdsSummaryForCurrent();
   if(el('monthlyExpenses').value!==String(monthlyExpenses||''))el('monthlyExpenses').value=monthlyExpenses||'';
+  const _sumForInput=curUserId()?AdsSummary.get(curUserId(),curPlatform(),curMonth()):null;
+  const _spendVal=_sumForInput?+_sumForInput.ads_spend||0:0;
+  if(el('monthlyAdsSpend').value!==String(_spendVal||''))el('monthlyAdsSpend').value=_spendVal||'';
   const list=savedProducts();
   if(!list.length){tb.innerHTML='<tbody><tr><td style="padding:16px">Cadastre produtos na aba <b>Precificação</b> para lançar as vendas do mês.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
   const head='<thead><tr><th>Produto</th><th>Custo compra</th><th>Unid. vendidas</th><th>Preço médio</th><th>Ads por venda</th><th>Receita bruta</th><th>Comissão + tarifas</th><th>Frete / outros</th><th>Imposto</th><th>Custo produtos</th><th>Ads total</th><th>Lucro líquido</th><th>% margem</th></tr></thead>';
@@ -893,22 +901,27 @@ function updateMonthly(){
 
 function renderMonthlyKpis(rows){
   const t=monthlyTotals(rows);
-  const sku=rows.filter(r=>r.units>0).length,margin=t.rev>0?t.profit/t.rev:NaN;
-  const gerais=+monthlyExpenses||0,liquido=t.profit-gerais;
-  // ACOS/TACOS vêm do resumo consolidado (mesmos números da aba Performance)
+  const sku=rows.filter(r=>r.units>0).length;
+  const gerais=+monthlyExpenses||0;
+  // Lucro operacional = ANTES dos Ads mensais e dos gastos gerais.
+  // t.profit já desconta Ads-por-venda; adicionamos t.ads de volta para obter o operacional.
+  const operational=t.profit+t.ads;
+  // ACOS/TACOS e gasto real de Ads vêm do consolidado (mesma fonte da aba Performance)
   const uid=curUserId(),summary=uid?AdsSummary.get(uid,curPlatform(),curMonth()):null;
-  const spend=summary?summary.ads_spend:0,revTotal=summary?summary.revenue_total:0,revAds=summary?summary.revenue_ads:0;
-  const acos=calcAcos(spend,revAds),tacos=calcTacos(spend,revTotal);
+  const spend=summary?+summary.ads_spend||0:0,revTotal=summary?+summary.revenue_total||0:0,revAds=summary?+summary.revenue_ads||0:0;
+  const liquido=operational-spend-gerais;
+  const margin=t.rev>0?liquido/t.rev:NaN;
+  const acos=calcAcos(spend,revAds),tacos=calcTacos(spend,t.rev>0?t.rev:revTotal);
   el('monthlyKpis').innerHTML=
     kpi('Faturamento do mês',fmtMoney(t.rev),platformName()+' · '+monthLabel(curMonth()))+
-    kpi('Gasto com Ads (por venda)',fmtMoney(t.ads),t.rev>0?fmtPct(t.ads/t.rev)+' do faturamento':'Somatório da coluna')+
-    kpi('Lucro do marketplace',fmtMoney(t.profit),'Depois das taxas e dos Ads')+
+    kpi('Gasto total com Ads do mês',fmtMoney(spend),t.rev>0?fmtPct(spend/t.rev)+' do faturamento':'Valor real informado')+
+    kpi('Lucro operacional do marketplace',fmtMoney(operational),'Antes dos Ads mensais e dos gastos gerais')+
     kpi('Gastos gerais do mês',fmtMoney(gerais),'Valor único do negócio')+
-    kpi('Lucro líquido final',fmtMoney(liquido),liquido>=0?'Marketplace − gastos gerais':'Prejuízo no mês')+
-    kpi('Margem do marketplace',fmtPct(margin),'Lucro ÷ faturamento')+
+    kpi('Lucro líquido final',fmtMoney(liquido),liquido>=0?'Operacional − Ads mensais − gastos gerais':'Prejuízo no mês')+
+    kpi('Margem líquida',fmtPct(margin),'Lucro líquido ÷ faturamento')+
     kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`)+
     kpi('ACOS',fmtPct(acos),spend>0||revAds>0?'Gasto ÷ receita dos Ads':'Preencha na aba Avaliar Anúncio')+
-    kpi('TACOS',fmtPct(tacos),spend>0||revTotal>0?'Gasto ÷ faturamento total':'Preencha na aba Avaliar Anúncio');
+    kpi('TACOS',fmtPct(tacos),spend>0?'Gasto ÷ faturamento total':'—');
 }
 
 function showView(v){
@@ -930,6 +943,14 @@ el('monthlyExpenses').oninput=()=>{
   monthlyExpenses=el('monthlyExpenses').value===''?0:+el('monthlyExpenses').value;
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
   scheduleExpensesSave();
+};
+// Gasto real com Ads (mensal) — fonte oficial. Grava no mesmo AdsSummary usado pela aba
+// "Avaliar Anúncio e Produto" para manter consistência entre as duas telas.
+el('monthlyAdsSpend').oninput=()=>{
+  const uid=curUserId();if(!uid)return;
+  const v=el('monthlyAdsSpend').value===''?0:+el('monthlyAdsSpend').value;
+  AdsSummary.set(uid,curPlatform(),curMonth(),'ads_spend',v,{manual:true});
+  const rows=monthlyRowsData();renderMonthlyKpis(rows);
 };
 el('monthlyClear').onclick=async()=>{
   const uid=curUserId();if(!uid)return;

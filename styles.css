@@ -10,3 +10,39 @@
 .ads-summary-form input{width:100%}
 @media(max-width:900px){.ads-summary-form{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.ads-summary-form{grid-template-columns:1fr}}
+
+/* --- FULL Ecommerce: logo do login (imagem) --- */
+.login-logo{width:112px;height:112px;margin-bottom:22px;border-radius:18px;background:#fff;box-shadow:0 4px 16px rgba(23,54,93,.10);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:10px}
+.login-logo img{width:100%;height:100%;object-fit:contain;display:block;animation:floatLogo 3s ease-in-out infinite}
+html[data-theme="dark"] .login-logo{background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+
+/* --- Responsividade em componentes compartilhados --- */
+html,body{max-width:100%;overflow-x:hidden}
+.table-wrap{-webkit-overflow-scrolling:touch}
+button,.btn,.chip{min-height:38px}
+.field input,.field select,.form-group input{min-height:40px;font-size:16px}
+.monthly-toolbar{gap:12px}
+.monthly-toolbar .field{max-width:100%;flex:1 1 220px}
+.monthly-actions{width:auto}
+@media(max-width:640px){
+  .monthly-toolbar{flex-direction:column;align-items:stretch}
+  .monthly-toolbar .field,.monthly-actions{width:100%;max-width:100%}
+  .monthly-actions .btn{flex:1 1 auto}
+  .platform-inner{gap:6px;padding:10px 12px}
+  .platform-btn{padding:9px 14px;font-size:13px}
+  .topbar{flex-direction:column;align-items:stretch}
+  .top-actions{width:100%;justify-content:flex-start;flex-wrap:wrap}
+  .top-actions .btn{flex:1 1 auto;min-width:44%}
+  .form-actions .btn{flex:1 1 auto}
+  .kpis{grid-template-columns:1fr}
+  .fields,.results,.catalog-tools,.perf-uploads,.business,.summary-grid{grid-template-columns:1fr}
+  .modal-content{max-width:96vw}
+}
+@media(max-width:420px){
+  .login-logo{width:92px;height:92px;padding:8px}
+}
+@media(max-width:640px){
+  .brand h1,.overview h2{font-size:18px;word-break:break-word}
+  .kpi .value{font-size:18px}
+  #pageTitle{font-size:18px}
+}

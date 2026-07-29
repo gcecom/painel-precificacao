@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Multiplataforma de Precificação 2026</title>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=22">
+<link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
 <nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button></div></nav>
@@ -73,6 +73,7 @@
 <div class="monthly-toolbar">
   <div class="field"><label>Mês de referência</label><input id="monthlyMonth" type="month"><div class="help" id="monthlyMonthHint">Cada mês fica salvo separadamente</div></div>
   <div class="field"><label>Gastos gerais do mês (R$)</label><input id="monthlyExpenses" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único do negócio (vale para todos os marketplaces)</div></div>
+  <div class="field"><label>Gasto total com Ads do mês (R$)</label><input id="monthlyAdsSpend" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor real gasto nesta plataforma no mês selecionado</div></div>
   <div class="monthly-actions"><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
 </div>
 <div class="monthly-months" id="monthlyMonthList"></div>
@@ -85,31 +86,11 @@
   <div class="modal-content login-card">
     <div class="login-container">
       <div class="login-logo">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
-          <!-- Cursor pixelado 3D - Logo GCEcommerce -->
-          <g transform="rotate(-20 100 100)">
-            <!-- Extrusão 3D (camada preta deslocada) -->
-            <path d="M 30,15
-                     v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8
-                     h -44
-                     l 22,52 l -18,8 l -22,-52
-                     l -30,30
-                     z"
-                  fill="#000000" transform="translate(11,9)"/>
-            <!-- Face branca do cursor com contorno preto -->
-            <path d="M 30,15
-                     v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8 h 8 v 8
-                     h -44
-                     l 22,52 l -18,8 l -22,-52
-                     l -30,30
-                     z"
-                  fill="#ffffff" stroke="#000000" stroke-width="6" stroke-linejoin="round"/>
-          </g>
-        </svg>
+        <img src="assets/full-ecommerce-logo.jpg?v=1" alt="FULL Ecommerce">
       </div>
 
       <h1>Painel de Precificação</h1>
-      <p class="login-subtitle">GCEcommerce</p>
+      <p class="login-subtitle">FULL Ecommerce</p>
 
       <form class="login-form" id="loginForm" onsubmit="return false;">
         <div class="form-group">
@@ -173,9 +154,9 @@
   </div>
 </div>
 
-<script src="supabase.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="supabase.js?v=23"></script>
+<script src="app.js?v=23"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=22"></script>
+<script src="performance.js?v=23"></script>
 </body>
 </html>
