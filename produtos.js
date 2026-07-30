@@ -15,10 +15,7 @@ let editingId='',dirty=false;
 
 function list(){try{return Array.isArray(products)?products:[]}catch(e){return[]}}
 function plats(){try{return Object.keys(PLATFORMS)}catch(e){return[]}}
-function platName(k){try{return PLATFORMS[k].name}catch(e){return k}}
 function isActive(p){return p.active!==false}
-// canal habilitado: ausência da flag conta como habilitado (compatível com o que já existe)
-function chanOn(p,k){const c=p.channels&&p.channels[k];return!c||c.enabled!==false}
 
 function setStatus(kind,txt){const e=el('prodStatus');if(!e)return;e.className='status '+kind;e.textContent=txt}
 function markDirty(){dirty=true;setStatus('warn','Alterações não salvas')}
@@ -36,23 +33,9 @@ function writeForm(){
   set('pcPrice',p?(p.default_price||0):'');
   set('pcImage',p?(p.image_url||''):'');
   el('pcActive').value=p?(isActive(p)?'1':'0'):'1';
-  renderPlatChips(p);
   renderThumb(p?p.image_url:'');
   dirty=false;
   setStatus('neutral',p?'Editando produto':'Preencha e salve');
-}
-
-function renderPlatChips(p){
-  const box=el('pcPlatforms');if(!box)return;
-  box.innerHTML=plats().map(k=>{
-    const on=p?chanOn(p,k):true;
-    return `<button type="button" class="chip${on?' on':''}" data-plat="${k}" aria-pressed="${on}">${esc(platName(k))}</button>`;
-  }).join('');
-  box.querySelectorAll('[data-plat]').forEach(b=>b.onclick=()=>{
-    const on=!b.classList.contains('on');
-    b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on));
-    markDirty();
-  });
 }
 
 function renderThumb(url){
@@ -68,8 +51,7 @@ function readForm(){
     cost:Math.max(0,+el('pcCost').value||0),
     default_price:Math.max(0,+el('pcPrice').value||0),
     image_url:(el('pcImage').value||'').trim()||null,
-    active:el('pcActive').value==='1',
-    enabled:[...el('pcPlatforms').querySelectorAll('[data-plat]')].reduce((a,b)=>(a[b.dataset.plat]=b.classList.contains('on'),a),{})
+    active:el('pcActive').value==='1'
   };
 }
 
@@ -88,13 +70,11 @@ async function save(){
       p={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),user_id:uid,
          channels:Object.fromEntries(plats().map(k=>[k,channelDefaults(k)]))};
       Object.assign(p,{name:f.name,sku:f.sku,category:f.category,cost:f.cost,default_price:f.default_price,image_url:f.image_url,active:f.active});
-      plats().forEach(k=>{p.channels[k].enabled=!!f.enabled[k]});
       await supabaseClient.createProduct(p);
       products.push(p);editingId=p.id;
     }else{
       Object.assign(p,{name:f.name,sku:f.sku,category:f.category,cost:f.cost,default_price:f.default_price,image_url:f.image_url,active:f.active});
       p.channels=p.channels||{};
-      plats().forEach(k=>{p.channels[k]=p.channels[k]||channelDefaults(k);p.channels[k].enabled=!!f.enabled[k]});
       await supabaseClient.updateProduct(p.id,p);
     }
     dirty=false;setStatus('good','Produto salvo');
@@ -133,17 +113,13 @@ function fillFilters(){
   const cur=el('prodFilterCat').value;
   el('prodFilterCat').innerHTML='<option value="">Todas</option>'+cats.map(c=>`<option${c===cur?' selected':''}>${esc(c)}</option>`).join('');
   const dl=el('pcCatList');if(dl)dl.innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
-  const pf=el('prodFilterPlat'),pcur=pf.value;
-  pf.innerHTML='<option value="">Todos</option>'+plats().map(k=>`<option value="${k}"${k===pcur?' selected':''}>${esc(platName(k))}</option>`).join('');
 }
 
 function filtered(){
-  const q=norm(el('prodSearch').value),cat=el('prodFilterCat').value,
-        plat=el('prodFilterPlat').value,st=el('prodFilterStatus').value;
+  const q=norm(el('prodSearch').value),cat=el('prodFilterCat').value,st=el('prodFilterStatus').value;
   return list().filter(p=>{
     if(q&&!norm(p.name+' '+(p.sku||'')).includes(q))return false;
     if(cat&&p.category!==cat)return false;
-    if(plat&&!chanOn(p,plat))return false;
     if(st==='1'&&!isActive(p))return false;
     if(st==='0'&&isActive(p))return false;
     return true;
@@ -154,20 +130,18 @@ function render(){
   fillFilters();
   const rows=filtered();
   el('prodCount').textContent=`${rows.length} de ${list().length} produto(s)`;
-  const head='<thead><tr><th>Produto</th><th>SKU</th><th>Categoria</th><th>Custo</th><th>Preço padrão</th><th>Marketplaces</th><th>Status</th><th>Ação</th></tr></thead>';
+  const head='<thead><tr><th>Produto</th><th>SKU</th><th>Categoria</th><th>Custo</th><th>Preço padrão</th><th>Status</th><th>Ação</th></tr></thead>';
   const body=rows.map(p=>{
-    const on=plats().filter(k=>chanOn(p,k)).map(k=>platName(k).split(' ')[0]).join(', ')||'—';
     return `<tr${p.id===editingId?' class="highlight"':''}>
       <td class="mo-name">${esc(p.name)}</td>
       <td>${esc(p.sku||'—')}</td>
       <td>${esc(p.category||'—')}</td>
       <td>${fmtMoney(p.cost||0)}</td>
       <td>${fmtMoney(p.default_price||0)}</td>
-      <td style="text-align:left;white-space:normal">${esc(on)}</td>
       <td><span class="status ${isActive(p)?'good':'neutral'}">${isActive(p)?'Ativo':'Inativo'}</span></td>
       <td><button class="btn small" data-edit="${p.id}">Editar</button></td>
     </tr>`;
-  }).join('')||'<tr><td colspan="8" style="padding:14px">Nenhum produto com esses filtros.</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="padding:14px">Nenhum produto com esses filtros.</td></tr>';
   el('prodTable').innerHTML=head+'<tbody>'+body+'</tbody>';
   el('prodTable').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     if(dirty&&!confirm('Existem alterações não salvas. Deseja continuar?'))return;
@@ -176,7 +150,7 @@ function render(){
 }
 
 // ---------- eventos ----------
-['prodSearch','prodFilterCat','prodFilterPlat','prodFilterStatus'].forEach(id=>{
+['prodSearch','prodFilterCat','prodFilterStatus'].forEach(id=>{
   const e=el(id);if(!e)return;
   if(id==='prodSearch')e.oninput=render;else e.onchange=render;
 });
@@ -197,5 +171,4 @@ window.renderProdutos=()=>{if(!editingId&&list().length)editingId=list()[0].id;w
 // preço padrão do cadastro — outras telas usam como valor inicial
 window.productDefaultPrice=id=>{const p=list().find(x=>x.id===id);return p?(+p.default_price||0):0};
 window.productIsActive=isActive;
-window.productChannelOn=chanOn;
 })();

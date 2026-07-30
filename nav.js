@@ -76,6 +76,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
 if(el('platformSelect'))el('platformSelect').onchange=()=>{
   const v=el('platformSelect').value;
   if(v){lastChannel=v;applyPlatform(v)}
+  // Módulos independentes de canal (Produtos, Estoque, Configurações) não recarregam:
+  // trocar o canal não pode mexer na lista nem no item em edição.
+  if(NO_CHANNEL[current])return;
   go(current,{silent:true});
   if(!v&&typeof window.renderDashboard==='function'&&current==='dash')window.renderDashboard();
 };

@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=33">
+<link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
 <div class="app-shell">
@@ -154,7 +154,6 @@
 <div class="dash-filters">
   <div class="field"><label>Buscar nome ou SKU</label><input id="prodSearch" placeholder="Digite para filtrar"></div>
   <div class="field"><label>Categoria</label><select id="prodFilterCat"><option value="">Todas</option></select></div>
-  <div class="field"><label>Marketplace ativo</label><select id="prodFilterPlat"><option value="">Todos</option></select></div>
   <div class="field"><label>Status</label><select id="prodFilterStatus"><option value="">Todos</option><option value="1">Ativos</option><option value="0">Inativos</option></select></div>
   <div class="dash-filter-actions"><button class="btn primary" id="prodNew">Novo produto</button></div>
 </div>
@@ -166,7 +165,6 @@
     <div class="field"><label>Custo unitário (R$)</label><input id="pcCost" type="number" min="0" step=".01"></div>
     <div class="field"><label>Preço de venda padrão (R$)</label><input id="pcPrice" type="number" min="0" step=".01"><div class="help">Valor inicial nas outras telas; não altera meses já salvos.</div></div>
     <div class="field full"><label>Imagem (URL, opcional)</label><input id="pcImage" placeholder="https://..."></div>
-    <div class="field full"><label>Marketplaces ativos</label><div class="chips" id="pcPlatforms"></div></div>
     <div class="field"><label>Status</label><select id="pcActive"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
     <div class="field"><label>&nbsp;</label><div class="prod-thumb" id="pcThumb"></div></div>
   </div>
@@ -277,13 +275,13 @@
   </div>
 </div>
 
-<script src="supabase.js?v=33"></script>
-<script src="app.js?v=33"></script>
+<script src="supabase.js?v=34"></script>
+<script src="app.js?v=34"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=33"></script>
-<script src="nav.js?v=33"></script>
-<script src="produtos.js?v=33"></script>
-<script src="estoque.js?v=33"></script>
-<script src="dashboard.js?v=33"></script>
+<script src="performance.js?v=34"></script>
+<script src="nav.js?v=34"></script>
+<script src="produtos.js?v=34"></script>
+<script src="estoque.js?v=34"></script>
+<script src="dashboard.js?v=34"></script>
 </body>
 </html>
