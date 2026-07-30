@@ -129,3 +129,6 @@ body.nav-collapsed .side-toggle{margin:0}
 .dash-delta{display:inline-block;margin-top:2px;font-size:10px;font-weight:800}
 .dash-delta.pos{color:var(--good)}
 .dash-delta.neg{color:var(--bad)}
+.mo-block-title{margin:16px 0 2px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mo-persist{align-self:center}
+@media print{.mo-block-title{color:#000}}
