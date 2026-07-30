@@ -626,7 +626,7 @@ function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
 
 let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false;
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;try{if(typeof window.resetStock==='function')window.resetStock()}catch(e){}AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição

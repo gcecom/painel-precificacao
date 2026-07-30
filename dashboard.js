@@ -391,6 +391,8 @@ if(el('dashReload'))el('dashReload').onclick=()=>renderDashboard(true);
 if(el('dashExport'))el('dashExport').onclick=exportCsv;
 if(el('dashToggleProducts'))el('dashToggleProducts').onclick=()=>{showAllProducts=!showAllProducts;if(agg){renderCharts(agg);renderTables(agg)}};
 
+// Biblioteca de graficos compartilhada (reutilizada pelo modulo Estoque)
+window.PainelCharts={chartCard,emptyChart,lineChart,barChart,doughnut,CH};
 window.renderDashboard=()=>renderDashboard(false);
 window.resetDashboard=()=>{raw=null;agg=null;showAllProducts=false;const f=el('dashFrom'),t=el('dashTo');if(f)f.value='';if(t)t.value=''};
 })();
