@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=26">
+<link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body>
 <nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button></div></nav>
@@ -77,7 +77,7 @@
   <div class="field"><label>Mês de referência</label><input id="monthlyMonth" type="month"><div class="help" id="monthlyMonthHint">Cada mês fica salvo separadamente</div></div>
   <div class="field"><label>Gastos gerais do mês (R$)</label><input id="monthlyExpenses" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único do negócio (vale para todos os marketplaces)</div></div>
   <div class="field"><label>Gasto total com Ads do mês (R$)</label><input id="monthlyAdsSpend" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor real gasto nesta plataforma no mês selecionado</div></div>
-  <div class="monthly-actions"><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
+  <div class="monthly-actions"><button class="btn primary" id="monthlySave">Salvar mês</button><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
 </div>
 <div class="monthly-months" id="monthlyMonthList"></div>
 <section class="kpis" id="monthlyKpis"></section>
@@ -157,9 +157,9 @@
   </div>
 </div>
 
-<script src="supabase.js?v=26"></script>
-<script src="app.js?v=26"></script>
+<script src="supabase.js?v=27"></script>
+<script src="app.js?v=27"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=26"></script>
+<script src="performance.js?v=27"></script>
 </body>
 </html>

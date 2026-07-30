@@ -624,9 +624,9 @@ const AdsSummary = (function(){
 function calcAcos(spend,revAds){return revAds>0?spend/revAds:NaN}
 function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
 
-let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlySaveTimers={},monthlyExpensesTimer=null,monthlyMonths=[];
+let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false;
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];AdsSummary.reset();resetPerformanceState();renderAdsSummary()};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;AdsSummary.reset();resetPerformanceState();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
@@ -735,7 +735,7 @@ async function ensureMonthlyLoaded(){
   const[rows,exp,months]=await Promise.all([
     supabaseClient.getMonthlySales(uid,plat,mo),
     supabaseClient.getMonthlyExpenses(uid,mo),
-    supabaseClient.listMonthlyMonths(uid),
+    supabaseClient.listMonthlyMonths(uid,plat),
     AdsSummary.load(uid,plat,mo) // popula o cache do resumo Ads (não bloqueia render se falhar dentro)
   ]);
   monthlyCache={};
@@ -743,6 +743,7 @@ async function ensureMonthlyLoaded(){
   monthlyExpenses=exp&&exp.amount!=null?+exp.amount:0;
   monthlyMonths=months||[];
   monthlyLoadedFor=key;
+  monthlyDirty=false; // acabou de carregar do banco: nada pendente
   return true;
 }
 
@@ -817,31 +818,49 @@ function monthlySaveOk(){
   if(h){h.textContent='Cada mês fica salvo separadamente';h.style.color=''}
 }
 
-// Salva com debounce (800ms de inatividade), como o auto-save da aba Precificação
-function scheduleMonthlySave(productId){
-  clearTimeout(monthlySaveTimers[productId]);
-  const mo=curMonth();
-  monthlySaveTimers[productId]=setTimeout(async()=>{
-    const uid=curUserId();if(!uid)return;
-    const s=monthlyCache[productId]||{units:0,price:0,ads:0};
-    try{
-      await supabaseClient.upsertMonthlySale({user_id:uid,platform:curPlatform(),product_id:productId,month:mo,units:+s.units||0,price:+s.price||0,ads_unit:+s.ads||0});
-      monthlySaveOk();
-      if(!monthlyMonths.includes(mo)){monthlyMonths.push(mo);monthlyMonths.sort().reverse();renderMonthList()}
-    }
-    catch(e){monthlySaveError(e)}
-  },800);
+// A persistência agora é explícita (botão "Salvar mês"): editar um campo só marca
+// pendência, não grava. Evita gravação parcial e deixa o fluxo igual ao de produtos.
+function markMonthlyDirty(){
+  monthlyDirty=true;
+  const b=el('monthlySave');if(b)b.textContent='Salvar mês •';
+  const h=el('monthlyMonthHint');
+  if(h){h.textContent='Alterações não salvas — clique em "Salvar mês"';h.style.color='var(--warn)'}
 }
 
-// Gastos gerais: um valor por mês, do negócio inteiro (não por marketplace)
-function scheduleExpensesSave(){
-  clearTimeout(monthlyExpensesTimer);
-  const mo=curMonth();
-  monthlyExpensesTimer=setTimeout(async()=>{
-    const uid=curUserId();if(!uid)return;
-    try{await supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0});monthlySaveOk()}
-    catch(e){monthlySaveError(e)}
-  },800);
+// Grava tudo o que o usuário preencheu no mês/marketplace aberto, em upsert
+// (user_id, platform, product_id, month) — nunca duplica o mesmo mês.
+async function saveMonth(){
+  const uid=curUserId();if(!uid){alert('Faça login para salvar.');return false}
+  const btn=el('monthlySave'),mo=curMonth(),plat=curPlatform();
+  const prev=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Salvando...'}
+  try{
+    const rows=monthlyRowsData();
+    // 1 upsert por produto com lançamento + os gastos gerais (únicos por usuário/mês)
+    const jobs=rows
+      .filter(r=>r.units>0||(monthlyCache[r.p.id]&&(+monthlyCache[r.p.id].units>0||+monthlyCache[r.p.id].price>0)))
+      .map(r=>supabaseClient.upsertMonthlySale({user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:r.units,price:r.price,ads_unit:0}));
+    jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0}));
+    await Promise.all(jobs);
+    monthlyDirty=false;
+    if(!monthlyMonths.includes(mo)){monthlyMonths.push(mo);monthlyMonths.sort().reverse();renderMonthList()}
+    const h=el('monthlyMonthHint');
+    if(h){h.textContent='Mês salvo com sucesso';h.style.color='var(--good)'}
+    setTimeout(()=>{const x=el('monthlyMonthHint');if(x&&!monthlyDirty){x.textContent='Cada mês fica salvo separadamente';x.style.color=''}},2500);
+    return true;
+  }catch(e){
+    monthlySaveError(e);
+    alert('Não foi possível salvar o mês:\n\n'+e.message);
+    return false;
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=monthlyDirty?'Salvar mês •':'Salvar mês'}
+  }
+}
+
+// Pede confirmação antes de descartar edições pendentes ao trocar mês/marketplace
+function confirmLeaveMonth(){
+  if(!monthlyDirty)return true;
+  return confirm('Existem alterações não salvas. Deseja continuar?');
 }
 
 // Meses que já têm lançamento viram atalhos clicáveis para consulta rápida
@@ -870,6 +889,7 @@ async function renderMonthly(){
     el('monthlyKpis').innerHTML='';return;
   }
   renderMonthList();
+  const _sb=el('monthlySave');if(_sb){_sb.disabled=false;_sb.textContent='Salvar mês'}
   await loadAdsSummaryForCurrent();
   if(el('monthlyExpenses').value!==String(monthlyExpenses||''))el('monthlyExpenses').value=monthlyExpenses||'';
   const _sumForInput=curUserId()?AdsSummary.get(curUserId(),curPlatform(),curMonth()):null;
@@ -904,7 +924,7 @@ async function renderMonthly(){
       monthlyCache[id]=monthlyCache[id]||{};
       monthlyCache[id][inp.dataset.mo]=inp.value===''?0:+inp.value;
       updateMonthly();
-      scheduleMonthlySave(id);
+      markMonthlyDirty();
     });
   });
   renderMonthlyKpis(rows);
@@ -972,11 +992,18 @@ el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
 el('tabMonthly').onclick=()=>showView('monthly');
 // Trocar o mês recarrega os lançamentos daquele mês (os outros meses continuam salvos)
-el('monthlyMonth').onchange=()=>{syncMonthInputs(el('monthlyMonth').value);monthlyLoadedFor=null;renderMonthly();renderAdsSummary()};
+let monthlyLastMonth=null;
+el('monthlyMonth').onchange=()=>{
+  const novo=el('monthlyMonth').value;
+  if(!confirmLeaveMonth()){el('monthlyMonth').value=monthlyLastMonth||curMonth();return}
+  monthlyLastMonth=novo;
+  syncMonthInputs(novo);monthlyLoadedFor=null;renderMonthly();renderAdsSummary();
+};
+el('monthlySave').onclick=()=>saveMonth();
 el('monthlyExpenses').oninput=()=>{
   monthlyExpenses=el('monthlyExpenses').value===''?0:+el('monthlyExpenses').value;
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
-  scheduleExpensesSave();
+  markMonthlyDirty();
 };
 // Gasto real com Ads (mensal) — fonte oficial. Grava no mesmo AdsSummary usado pela aba
 // "Avaliar Anúncio e Produto" para manter consistência entre as duas telas.
@@ -990,14 +1017,19 @@ el('monthlyClear').onclick=async()=>{
   const uid=curUserId();if(!uid)return;
   const mo=curMonth();
   if(!confirm(`Zerar as vendas lançadas de ${platformName()} em ${monthLabel(mo)}?\n\nOs outros meses e marketplaces não são afetados.`))return;
-  try{await supabaseClient.deleteMonthlySales(uid,curPlatform(),mo);monthlyCache={};monthlyLoadedFor=null;await renderMonthly()}
+  try{
+    await supabaseClient.deleteMonthlySales(uid,curPlatform(),mo);
+    monthlyCache={};monthlyLoadedFor=null;monthlyDirty=false;
+    monthlyMonths=monthlyMonths.filter(m=>m!==mo); // sai de "Meses salvos" deste marketplace
+    await renderMonthly();
+  }
   catch(e){alert('Erro ao zerar: '+e.message)}
 };
 el('monthlyPrint').onclick=()=>window.print();
 // Trocar de plataforma recalcula a venda, o fechamento mensal e o resumo Ads (todos por marketplace)
 document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{
   if(simState){renderSimTable();renderSingleSale()}
-  if(!el('monthlyView').classList.contains('hidden')){monthlyLoadedFor=null;renderMonthly()}
+  if(!el('monthlyView').classList.contains('hidden')){if(!confirmLeaveMonth())return;monthlyLoadedFor=null;renderMonthly()}
   if(!el('performanceView').classList.contains('hidden'))renderAdsSummary();
 }));
 })();

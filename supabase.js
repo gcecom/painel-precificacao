@@ -173,10 +173,11 @@ const supabaseClient = {
     return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}`, 'DELETE');
   },
 
-  // Meses que já têm lançamento — alimenta a lista de meses salvos para consulta
-  async listMonthlyMonths(userId) {
+  // Meses que já têm lançamento NESTE marketplace — alimenta "Meses salvos"
+  async listMonthlyMonths(userId, platform) {
     try {
-      const rows = await this.request(`/monthly_sales?user_id=eq.${userId}&select=month`);
+      const flt = platform ? `&platform=eq.${platform}` : '';
+      const rows = await this.request(`/monthly_sales?user_id=eq.${userId}${flt}&select=month`);
       return [...new Set((rows || []).map(r => r.month).filter(Boolean))].sort().reverse();
     } catch (e) { return [] }
   },
