@@ -692,7 +692,7 @@ AdsSummary.subscribe(({uid,platform:plat,month:mo,error})=>{
     try{
       const inp=el('monthlyAdsSpend'),v=rec?+rec.ads_spend||0:0;
       if(inp&&document.activeElement!==inp&&inp.value!==String(v||''))inp.value=v||'';
-      renderMonthlyKpis(monthlyRowsData());
+      updateMonthly();
     }catch(e){}
   }
   const st=el('adsSummaryStatus');
@@ -758,19 +758,46 @@ function monthlyUnit(p,price){
 
 // "ads" = quanto foi gasto de anúncio POR VENDA daquele produto no mês (preenchido à mão,
 // porque nem toda venda vem do cenário simulado na aba Precificação).
+// Gasto real de Ads do mês (fonte oficial, informado no topo da aba)
+function currentAdsSpend(){
+  const uid=curUserId();if(!uid)return 0;
+  const r=AdsSummary.get(uid,curPlatform(),curMonth());
+  return r?+r.ads_spend||0:0;
+}
+
 function monthlyRowsData(){
-  return savedProducts().map(p=>{
+  const rows=savedProducts().map(p=>{
     const s=monthlyCache[p.id]||{};
     const ch=(p.channels&&p.channels[curPlatform()])||{};
     const units=+s.units||0;
     const price=s.price!=null&&s.price!==''?+s.price:(ch.price||0);
-    const adsUnit=+s.ads||0;
     const u=monthlyUnit(p,price);
     const rev=units*price;
-    const adsTotal=adsUnit*units;
-    const profitUnit=u.profit-adsUnit;
-    return{p,units,price,adsUnit,rev,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,ads:adsTotal,profit:profitUnit*units,margin:price>0?profitUnit/price:NaN};
+    return{p,units,price,rev,u,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units};
   });
+  // Rateio do Ads mensal proporcional ao faturamento: todo produto recebe a MESMA
+  // % de Ads sobre a própria receita. Faturamento zero não recebe rateio.
+  const spend=currentAdsSpend();
+  const revTotal=rows.reduce((a,r)=>a+r.rev,0);
+  const pct=revTotal>0?spend/revTotal:0;
+  const cents=v=>Math.round(v*100)/100;
+  let maxIdx=-1,maxRev=-1;
+  rows.forEach((r,i)=>{
+    r.adsUnit=r.rev>0?r.price*pct:0;
+    r.ads=r.rev>0?cents(r.rev*pct):0;
+    if(r.rev>maxRev){maxRev=r.rev;maxIdx=i}
+  });
+  // Resíduo de arredondamento no produto de maior faturamento: a soma da coluna
+  // "Ads total" fecha exatamente com o gasto informado.
+  if(pct>0&&maxIdx>=0){
+    const diff=cents(spend-rows.reduce((a,r)=>a+r.ads,0));
+    if(Math.abs(diff)>=0.005)rows[maxIdx].ads=cents(rows[maxIdx].ads+diff);
+  }
+  rows.forEach(r=>{
+    r.profit=r.u.profit*r.units-r.ads;
+    r.margin=r.rev>0?r.profit/r.rev:NaN;
+  });
+  return rows;
 }
 
 function monthlySaveError(e){
@@ -852,7 +879,7 @@ async function renderMonthly(){
       <td>${fmtMoney(r.p.cost||0)}</td>
       <td><input type="number" min="0" step="1" data-mo="units" data-id="${r.p.id}" value="${r.units||''}" placeholder="0"></td>
       <td><input type="number" min="0" step=".01" data-mo="price" data-id="${r.p.id}" value="${r.price||''}" placeholder="0,00"></td>
-      <td><input type="number" min="0" step=".01" data-mo="ads" data-id="${r.p.id}" value="${r.adsUnit||''}" placeholder="0,00"></td>
+      <td data-c="adsUnit">${fmtMoney(r.adsUnit)}</td>
       <td data-c="rev">${fmtMoney(r.rev)}</td>
       <td data-c="comm">${fmtMoney(r.comm)}</td>
       <td data-c="frete">${fmtMoney(r.frete)}</td>
@@ -891,7 +918,7 @@ function updateMonthly(){
   for(const r of rows){
     const tr=tb.querySelector(`tr[data-mid="${r.p.id}"]`);if(!tr)continue;
     const set=(c,v)=>{const td=tr.querySelector(`td[data-c="${c}"]`);if(td)td.textContent=v};
-    set('rev',fmtMoney(r.rev));set('comm',fmtMoney(r.comm));set('frete',fmtMoney(r.frete));set('tax',fmtMoney(r.tax));set('cost',fmtMoney(r.cost));set('ads',fmtMoney(r.ads));
+    set('adsUnit',fmtMoney(r.adsUnit));set('rev',fmtMoney(r.rev));set('comm',fmtMoney(r.comm));set('frete',fmtMoney(r.frete));set('tax',fmtMoney(r.tax));set('cost',fmtMoney(r.cost));set('ads',fmtMoney(r.ads));
     const pt=tr.querySelector('td[data-c="profit"]');if(pt){pt.textContent=fmtMoney(r.profit);pt.className=r.profit>=0?'pos':'neg'}
     set('margin',fmtPct(r.margin));
   }
@@ -950,7 +977,7 @@ el('monthlyAdsSpend').oninput=()=>{
   const uid=curUserId();if(!uid)return;
   const v=el('monthlyAdsSpend').value===''?0:+el('monthlyAdsSpend').value;
   AdsSummary.set(uid,curPlatform(),curMonth(),'ads_spend',v,{manual:true});
-  const rows=monthlyRowsData();renderMonthlyKpis(rows);
+  updateMonthly(); // rateia o novo valor entre os produtos e refaz totais/KPIs
 };
 el('monthlyClear').onclick=async()=>{
   const uid=curUserId();if(!uid)return;
