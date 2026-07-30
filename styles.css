@@ -126,3 +126,6 @@ body.nav-collapsed .side-toggle{margin:0}
   .topbar h1{font-size:16px;flex:1 1 100%;order:3}
 }
 @media print{.side-nav,.nav-burger,.nav-scrim,.chan-pick{display:none!important}.app-shell{display:block}}
+.dash-delta{display:inline-block;margin-top:2px;font-size:10px;font-weight:800}
+.dash-delta.pos{color:var(--good)}
+.dash-delta.neg{color:var(--bad)}

@@ -25,6 +25,8 @@ function platformName(k){try{return PLATFORMS[k].name}catch(e){return k}}
 
 // ---------- estado ----------
 let raw=null;              // {sales,ads,exp,months} cru do banco
+let aggPrev=null;          // agregacao do periodo anterior (comparacao dos cards)
+let stock=null;            // snapshot vindo do modulo Estoque (window.stockSnapshot)
 let agg=null;              // resultado da última agregação (não recalcula a cada render)
 let showAllProducts=false;
 let loading=false;
@@ -41,6 +43,15 @@ function monthsBetween(from,to){
     if(y===ey&&m===em)break;
     m++;if(m>12){m=1;y++}
   }
+  return out;
+}
+
+// Período anterior: mesma quantidade de meses, imediatamente antes do primeiro
+function prevMonths(months){
+  if(!months.length)return[];
+  let[y,m]=months[0].split('-').map(Number);
+  const out=[];
+  for(let i=0;i<months.length;i++){m--;if(m<1){m=12;y--}out.unshift(y+'-'+String(m).padStart(2,'0'))}
   return out;
 }
 
@@ -202,7 +213,75 @@ function renderCharts(a){
     chartCard('Produtos com maior faturamento',barChart(topN(a.byProd,'rev',N)))+
     chartCard('Produtos com maior lucro',barChart(topN(a.byProd,'operational',N),fmtMoney),'Lucro operacional (antes do Ads do mês).')+
     chartCard('Unidades vendidas por produto',barChart(topN(a.byProd,'units',N),fmtInt))+
-    chartCard('Valor financeiro do estoque',emptyChart('Requer a aba Estoque (não existe ainda no sistema).'));
+    chartCard('Valor financeiro do estoque',stock&&stock.rows.some(r=>r.value>0)?barChart(stock.rows.slice().sort((x,y)=>y.value-x.value).slice(0,N).map(r=>({label:r.p.name,value:r.value}))):emptyChart('Lance quantidades na aba Estoque para ver o capital imobilizado.'),'Capital parado por produto (custo × quantidade).');
+}
+
+// ---------- ATENÇÃO NECESSÁRIA (Etapa 6) — só regras objetivas, sem IA externa ----------
+const MARGEM_MIN=0.05; // limite configurável de margem baixa (5%)
+function renderAlerts(a){
+  const box=el('dashAlerts');if(!box)return;
+  const out=[];
+  const push=(lvl,t,txt)=>out.push([lvl,t,txt]);
+  const st=stock;
+
+  // --- estoque ---
+  if(st){
+    const sem=st.rows.filter(r=>r.status==='out'&&r.p.active!==false);
+    const baixo=st.rows.filter(r=>r.status==='low');
+    if(sem.length)push('bad','Produto sem estoque',`${sem.length} produto(s) ativo(s) com quantidade zero: ${sem.slice(0,4).map(r=>r.p.name).join(', ')}${sem.length>4?'…':''}.`);
+    if(baixo.length)push('warn','Estoque abaixo do mínimo',`${baixo.length} produto(s) no ou abaixo do mínimo: ${baixo.slice(0,4).map(r=>r.p.name+' ('+fmtInt(r.qty)+'/'+fmtInt(r.min)+')').join(', ')}.`);
+    // produto rentável com risco de falta / vendeu e está com estoque baixo
+    Object.entries(a.byProd).forEach(([id,v])=>{
+      const r=st.rows.find(x=>x.p.id===id);if(!r)return;
+      const lucro=v.operational-v.ads;
+      if(lucro>0&&r.status!=='ok')push('bad','Produto rentável com risco de falta',`"${v.name}" lucrou ${fmtMoney(lucro)} no período e está com ${fmtInt(r.qty)} em estoque (mínimo ${fmtInt(r.min)}).`);
+    });
+    // estoque alto com baixa saída
+    st.rows.forEach(r=>{
+      const v=a.byProd[r.p.id];
+      const vendeu=v?v.units:0;
+      if(r.value>0&&r.qty>=10&&vendeu===0)push('warn','Estoque alto com baixa saída',`"${r.p.name}" tem ${fmtInt(r.qty)} unidades (${fmtMoney(r.value)} parados) e nenhuma venda no período.`);
+    });
+    // produto sem vendas no período
+    const semVenda=st.rows.filter(r=>r.p.active!==false&&!(a.byProd[r.p.id]&&a.byProd[r.p.id].units>0));
+    if(semVenda.length&&semVenda.length!==st.rows.length)push('warn','Produto sem vendas no período',`${semVenda.length} produto(s) ativo(s) sem nenhuma unidade vendida.`);
+  }
+
+  // --- margem e Ads ---
+  if(Number.isFinite(a.margemLiquida)){
+    if(a.margemLiquida<0)push('bad','Margem negativa',`O período fechou com margem de ${fmtPct(a.margemLiquida)} — o lucro líquido é ${fmtMoney(a.liquido)}.`);
+    else if(a.margemLiquida<MARGEM_MIN)push('warn','Margem abaixo do limite',`Margem de ${fmtPct(a.margemLiquida)}, abaixo do mínimo de ${fmtPct(MARGEM_MIN)} definido no painel.`);
+  }
+  if(Number.isFinite(a.tacos)){
+    if(a.tacos>0.20)push('bad','TACOS elevado',`Ads consumiu ${fmtPct(a.tacos)} do faturamento (acima de 20%).`);
+    if(Number.isFinite(a.margemLiquida)&&a.tacos>a.margemLiquida)push('bad','Ads acima da margem suportada',`TACOS de ${fmtPct(a.tacos)} é maior que a margem líquida de ${fmtPct(a.margemLiquida)} — os anúncios estão comendo o lucro.`);
+  }
+  Object.entries(a.byProd).forEach(([id,v])=>{
+    const l=v.operational-v.ads,m=RATIO(l,v.rev);
+    if(v.rev>0&&Number.isFinite(m)&&m<0)push('bad','Produto com margem negativa',`"${v.name}" deu prejuízo de ${fmtMoney(Math.abs(l))} (margem ${fmtPct(m)}).`);
+  });
+
+  // --- quedas em relação ao período anterior ---
+  if(aggPrev&&aggPrev.total.rev>0){
+    if(a.total.rev<aggPrev.total.rev)push('warn','Queda de faturamento',`Faturamento caiu ${fmtMoney(aggPrev.total.rev-a.total.rev)} (${fmtPct((aggPrev.total.rev-a.total.rev)/aggPrev.total.rev)}) em relação ao período anterior.`);
+    if(a.liquido<aggPrev.liquido)push('warn','Queda de lucro',`Lucro líquido caiu ${fmtMoney(aggPrev.liquido-a.liquido)} em relação ao período anterior.`);
+  }
+
+  const order={bad:0,warn:1,good:2};
+  out.sort((x,y)=>order[x[0]]-order[y[0]]);
+  const dedup=[];const seen=new Set();
+  for(const it of out){const k=it[0]+'|'+it[1]+'|'+it[2];if(!seen.has(k)){seen.add(k);dedup.push(it)}}
+  const shown=dedup.slice(0,14);
+  box.innerHTML=shown.length
+    ? shown.map(([l,t,txt])=>`<div class="diag ${l==='bad'?'badbox':l==='warn'?'warnbox':''}"><h3>${esc(t)}</h3><p>${esc(txt)}</p></div>`).join('')
+      +(dedup.length>shown.length?`<p class="help">+${dedup.length-shown.length} outro(s) ponto(s) de atenção.</p>`:'')
+    : '<div class="diag"><h3>Nada crítico no período</h3><p>Sem produtos zerados, margem negativa ou TACOS acima do limite.</p></div>';
+  const stt=el('dashAlertStatus');
+  if(stt){
+    const worst=shown.length?shown[0][0]:'good';
+    stt.className='status '+(worst==='bad'?'bad':worst==='warn'?'warn':'good');
+    stt.textContent=worst==='bad'?'Ação necessária':worst==='warn'?'Pontos de atenção':'Tudo em ordem';
+  }
 }
 
 // ---------- insights por regras ----------
@@ -250,7 +329,15 @@ function renderInsights(a){
   if(Number.isFinite(a.tacos)&&Number.isFinite(a.margemLiquida)&&a.tacos>a.margemLiquida)
     push('bad','TACOS acima da margem líquida',`TACOS de ${fmtPct(a.tacos)} contra margem de ${fmtPct(a.margemLiquida)} — o Ads está consumindo mais que a sobra do negócio.`);
 
-  push('warn','Indicadores de estoque indisponíveis','Estoque atual, capital parado e estoque mínimo dependem da aba Estoque, que ainda não existe no sistema.');
+  // estoque: usa o snapshot do módulo Estoque quando já carregado
+  if(stock&&stock.rows.length){
+    const cap=stock.rows.slice().sort((x,y)=>y.value-x.value)[0];
+    if(cap&&cap.value>0)push('good','Produto com maior capital em estoque',`"${cap.p.name}" concentra ${fmtMoney(cap.value)} (${fmtInt(cap.qty)} unidades) — ${fmtPct(cap.value/(stock.total||1))} do valor total do estoque.`);
+    const qty=stock.rows.slice().sort((x,y)=>y.qty-x.qty)[0];
+    if(qty&&qty.qty>0)push('good','Produto com maior quantidade',`"${qty.p.name}" com ${fmtInt(qty.qty)} unidades disponíveis.`);
+  }else{
+    push('warn','Estoque ainda não lançado','Abra a aba Estoque e informe as quantidades para ver capital parado e alertas de estoque mínimo.');
+  }
 
   const order={bad:0,warn:1,good:2};
   out.sort((x,y)=>order[x[0]]-order[y[0]]);
@@ -262,21 +349,31 @@ function renderInsights(a){
 }
 
 // ---------- cards ----------
+function delta(cur,prev,fmt){
+  if(!aggPrev||prev==null||!Number.isFinite(prev)||prev===0)return'';
+  const d=cur-prev,p=prev!==0?d/Math.abs(prev):NaN;
+  if(Math.abs(d)<0.005)return'<span class="dash-delta">= igual ao período anterior</span>';
+  const up=d>0;
+  return`<span class="dash-delta ${up?'pos':'neg'}">${up?'▲':'▼'} ${(fmt||fmtMoney)(Math.abs(d))}${Number.isFinite(p)?' ('+fmtPct(Math.abs(p))+')':''} vs. anterior</span>`;
+}
+
 function renderKpis(a){
-  const t=a.total;
+  const t=a.total,P=aggPrev;
+  const st=stock;
+  const sub=(txt,cur,prev,fmt)=>txt+(delta(cur,prev==null?null:prev,fmt)?'<br>'+delta(cur,prev,fmt):'');
   el('dashKpis').innerHTML=
-    kpi('Faturamento total',fmtMoney(t.rev),`${a.months.length} mês(es) · ${Object.keys(a.byPlat).length} marketplace(s)`)+
-    kpi('Lucro operacional',fmtMoney(t.operational),'Antes dos Ads e gastos gerais')+
-    kpi('Lucro líquido final',fmtMoney(a.liquido),a.liquido>=0?'Operacional − Ads − gastos gerais':'Prejuízo no período')+
-    kpi('Margem líquida',fmtPct(a.margemLiquida),'Lucro líquido ÷ faturamento')+
-    kpi('Unidades vendidas',fmtInt(t.units),`${Object.keys(a.byProd).length} produto(s)`)+
-    kpi('Gasto total com Ads',fmtMoney(a.adsTotal),a.filtered?'Rateado pelo filtro':'Soma dos marketplaces')+
+    kpi('Faturamento total',fmtMoney(t.rev),sub(`${a.months.length} mês(es) · ${Object.keys(a.byPlat).length} marketplace(s)`,t.rev,P&&P.total.rev))+
+    kpi('Lucro operacional',fmtMoney(t.operational),sub('Antes dos Ads e gastos gerais',t.operational,P&&P.total.operational))+
+    kpi('Lucro líquido final',fmtMoney(a.liquido),sub(a.liquido>=0?'Operacional − Ads − gastos gerais':'Prejuízo no período',a.liquido,P&&P.liquido))+
+    kpi('Margem líquida',fmtPct(a.margemLiquida),'Lucro líquido ÷ faturamento'+(aggPrev&&Number.isFinite(aggPrev.margemLiquida)&&Number.isFinite(a.margemLiquida)?`<br><span class="dash-delta ${a.margemLiquida>=aggPrev.margemLiquida?'pos':'neg'}">${a.margemLiquida>=aggPrev.margemLiquida?'▲':'▼'} ${Math.abs((a.margemLiquida-aggPrev.margemLiquida)*100).toLocaleString('pt-BR',{maximumFractionDigits:2})} p.p. vs. anterior</span>`:''))+
+    kpi('Unidades vendidas',fmtInt(t.units),sub(`${Object.keys(a.byProd).length} produto(s)`,t.units,P&&P.total.units,fmtInt))+
+    kpi('Gasto total com Ads',fmtMoney(a.adsTotal),sub(a.filtered?'Rateado pelo filtro':'Soma dos marketplaces',a.adsTotal,P&&P.adsTotal))+
     kpi('TACOS',fmtPct(a.tacos),'Ads ÷ faturamento total')+
-    kpi('Gastos gerais',fmtMoney(a.gerais),'Uma vez por mês')+
-    kpi('Custo dos produtos vendidos',fmtMoney(t.cost),'CMV do período')+
-    kpi('Valor atual do estoque','—','Requer aba Estoque')+
-    kpi('Valor potencial de venda','—','Requer aba Estoque')+
-    kpi('Produtos com estoque baixo','—','Requer aba Estoque');
+    kpi('Gastos gerais',fmtMoney(a.gerais),sub('Uma vez por mês',a.gerais,P&&P.gerais))+
+    kpi('Custo dos produtos vendidos',fmtMoney(t.cost),sub('CMV do período',t.cost,P&&P.total.cost))+
+    kpi('Valor atual do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra a aba Estoque')+
+    kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade':'Abra a aba Estoque')+
+    kpi('Produtos com estoque baixo',st?fmtInt(st.low):'—',st?(st.out?fmtInt(st.out)+' sem estoque':'Nenhum sem estoque'):'Abra a aba Estoque');
 }
 
 // ---------- tabelas ----------
@@ -356,10 +453,22 @@ async function renderDashboard(force){
   if(loading)return;
   loading=true;st.textContent='Carregando…';
   try{
-    if(force||!raw||raw._months!==months.join(','))
-      { await loadRaw(months); raw._months=months.join(','); }
-    agg=aggregate(months,el('dashPlatform').value,el('dashProduct').value,el('dashCategory').value);
-    renderKpis(agg);renderCharts(agg);renderInsights(agg);renderTables(agg);
+    const prev=prevMonths(months);
+    const union=prev.concat(months);
+    if(force||!raw||raw._months!==union.join(','))
+      { await loadRaw(union); raw._months=union.join(','); }
+    const fP=el('dashPlatform').value,fPr=el('dashProduct').value,fC=el('dashCategory').value;
+    agg=aggregate(months,fP,fPr,fC);
+    // comparação só existe se o período anterior tiver algum dado salvo
+    const p=aggregate(prev,fP,fPr,fC);
+    aggPrev=p.months.length?p:null;
+    // estoque: reaproveita o cálculo do módulo Estoque (sem duplicar fórmula)
+    stock=null;
+    try{
+      if(typeof window.stockEnsureLoaded==='function'){await window.stockEnsureLoaded();
+        if(typeof window.stockSnapshot==='function'){const sn=window.stockSnapshot();if(sn&&sn.loaded)stock=sn}}
+    }catch(e){console.warn('Estoque indisponível no dashboard:',e.message)}
+    renderKpis(agg);renderCharts(agg);renderAlerts(agg);renderInsights(agg);renderTables(agg);
     st.textContent=agg.months.length
       ? `${agg.months.length} mês(es) salvos no período · atualizado agora`
       : 'Nenhum mês salvo neste período. Lance e salve dados na aba Resultado Mensal.';
