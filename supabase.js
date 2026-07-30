@@ -158,6 +158,19 @@ const supabaseClient = {
     return this.request(`/products?id=eq.${id}`, 'DELETE');
   },
 
+  // ---------- Estoque (1 linha por produto, isolado por usuário) ----------
+  async getStock(userId) {
+    return this.request(`/stock?user_id=eq.${userId}&select=product_id,qty,min_qty`);
+  },
+
+  // Grava em lote: 1 requisição para todos os produtos alterados (evita 1 por produto)
+  async upsertStock(rows) {
+    if (!rows || !rows.length) return null;
+    return this.request('/stock?on_conflict=user_id,product_id', 'POST', rows, {
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
+    });
+  },
+
   // ---------- Resultado mensal (por usuário + marketplace + produto + mês) ----------
   async getMonthlySales(userId, platform, month) {
     return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}`);

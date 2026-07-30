@@ -781,10 +781,10 @@ function monthlyRowsData(){
     const s=monthlyCache[p.id]||{};
     const ch=(p.channels&&p.channels[curPlatform()])||{};
     const units=+s.units||0;
-    // Preço médio: 1) valor salvo do mês/marketplace  2) preço de venda do cadastro
-    // (Precificação)  3) zero. Um 0 salvo conta como "não informado" — senão salvar só
-    // as unidades gravaria price=0 e o mês perderia o preço-base do cadastro.
-    const price=+s.price>0?+s.price:(ch.price||0);
+    // Preço médio: 1) valor salvo do mês/marketplace  2) preço do canal na Precificação
+    // 3) preço padrão do cadastro central  4) zero. Um 0 salvo conta como "não informado"
+    // — senão salvar só as unidades gravaria price=0 e o mês perderia o preço-base.
+    const price=+s.price>0?+s.price:(+ch.price>0?+ch.price:(+p.default_price||0));
     const u=monthlyUnit(p,price);
     const rev=units*price;
     return{p,units,price,rev,u,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units};
