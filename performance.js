@@ -748,7 +748,11 @@ async function ensureMonthlyLoaded(){
 
 // Custos por unidade de um produto no marketplace atual, ao preço informado
 function monthlyUnit(p,price){
-  const ch=(p.channels&&p.channels[curPlatform()])||(typeof channelDefaults==='function'?channelDefaults(curPlatform()):{});
+  const base=(p.channels&&p.channels[curPlatform()])||(typeof channelDefaults==='function'?channelDefaults(curPlatform()):{});
+  // O "Preço médio" lançado no fechamento JÁ é o valor realizado no mês. Aplicar de novo
+  // o desconto/cupom do cadastro faria as taxas incidirem sobre um preço menor que a
+  // receita exibida, e a linha não fecharia (receita − custos ≠ lucro mostrado).
+  const ch=Object.assign({},base,{discount:0});
   if(typeof calcAt==='function'){
     const r=calcAt(p,ch,price);
     return{comm:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:p.cost||0,profit:r.beforeAds,gross:r.gross};
@@ -770,7 +774,10 @@ function monthlyRowsData(){
     const s=monthlyCache[p.id]||{};
     const ch=(p.channels&&p.channels[curPlatform()])||{};
     const units=+s.units||0;
-    const price=s.price!=null&&s.price!==''?+s.price:(ch.price||0);
+    // Preço médio: 1) valor salvo do mês/marketplace  2) preço de venda do cadastro
+    // (Precificação)  3) zero. Um 0 salvo conta como "não informado" — senão salvar só
+    // as unidades gravaria price=0 e o mês perderia o preço-base do cadastro.
+    const price=+s.price>0?+s.price:(ch.price||0);
     const u=monthlyUnit(p,price);
     const rev=units*price;
     return{p,units,price,rev,u,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units};
