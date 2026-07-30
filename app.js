@@ -84,7 +84,9 @@ async function save(manual){
 
 function autoSave(){if(autoSaveTimeout)clearTimeout(autoSaveTimeout);if(isSaving)return;setEditStatus('neutral','Salvando...');autoSaveTimeout=setTimeout(async()=>{isSaving=true;try{await save(false)}catch(e){console.error('Auto-save error:',e)}finally{isSaving=false}},1500)}
 
-function setTheme(theme){theme=theme==='dark'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem(THEME_STORAGE,theme)}catch{}let dark=theme==='dark';$('lightThemeBtn').classList.toggle('active',!dark);$('darkThemeBtn').classList.toggle('active',dark);$('lightThemeBtn').setAttribute('aria-pressed',String(!dark));$('darkThemeBtn').setAttribute('aria-pressed',String(dark))}
+// Atualiza TODOS os toggles na página (topbar + tela de login) via data-theme-choice,
+// para o tema escolhido em um lugar refletir no outro sem duplicar lógica.
+function setTheme(theme){theme=theme==='dark'?'dark':'light';document.documentElement.dataset.theme=theme;try{localStorage.setItem(THEME_STORAGE,theme)}catch{}document.querySelectorAll('[data-theme-choice]').forEach(b=>{let on=b.dataset.themeChoice===theme;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))})}
 
 function applyTheme(){let x=PLATFORMS[platform];document.documentElement.dataset.platform=platform;document.documentElement.style.setProperty('--brand',x.brand);document.documentElement.style.setProperty('--brand-ink',x.ink);document.documentElement.style.setProperty('--accent',x.accent);document.querySelectorAll('.platform-btn').forEach(b=>b.classList.toggle('active',b.dataset.platform===platform));writeForm()}
 
@@ -181,7 +183,9 @@ $('loginBtn').onclick=async()=>{let email=$('loginEmail').value,pass=$('loginPas
 
 $('logoutBtn').onclick=async()=>{await supabaseClient.signOut();currentUser=null;products=[];selectedId='';await initAuth()};
 
-$('lightThemeBtn').onclick=()=>setTheme('light');$('darkThemeBtn').onclick=()=>setTheme('dark');setTheme(document.documentElement.dataset.theme);
+document.querySelectorAll('[data-theme-choice="light"]').forEach(b=>b.onclick=()=>setTheme('light'));
+document.querySelectorAll('[data-theme-choice="dark"]').forEach(b=>b.onclick=()=>setTheme('dark'));
+setTheme(document.documentElement.dataset.theme);
 
 fieldIds.forEach(k=>{let e=$(k);if(e)e.addEventListener('input',()=>{readForm();syncLabels();renderAll();autoSave()})});
 

@@ -132,3 +132,8 @@ body.nav-collapsed .side-toggle{margin:0}
 .mo-block-title{margin:16px 0 2px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .mo-persist{align-self:center}
 @media print{.mo-block-title{color:#000}}
+
+/* Toggle de tema na tela de login: canto superior direito, fora do cartão */
+.login-theme{position:fixed;top:16px;right:16px;z-index:110;order:0;width:auto!important}
+.login-theme .theme-option{min-width:44px;min-height:44px;display:grid;place-items:center;font-size:16px}
+@media(max-width:480px){.login-theme{top:12px;right:12px}}

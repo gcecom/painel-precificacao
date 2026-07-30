@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=34">
+<link rel="stylesheet" href="styles.css?v=35">
 </head>
 <body>
 <div class="app-shell">
@@ -46,7 +46,7 @@
         <option value="magalu">Magalu</option>
       </select>
     </label>
-    <div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾</button></div>
+    <div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" data-theme-choice="light" type="button" aria-pressed="true" aria-label="Ativar modo claro">☀</button><button class="theme-option" id="darkThemeBtn" data-theme-choice="dark" type="button" aria-pressed="false" aria-label="Ativar modo escuro">☾</button></div>
     <span class="top-user" id="topUser" title=""></span>
     <button class="btn" id="logoutBtn">Sair</button>
   </div>
@@ -204,6 +204,7 @@
 </div>
 
 <div id="loginModal" class="modal hidden">
+  <div class="theme-toggle login-theme" role="group" aria-label="Tema do painel"><button class="theme-option" data-theme-choice="light" type="button" aria-pressed="true" aria-label="Ativar modo claro">☀</button><button class="theme-option" data-theme-choice="dark" type="button" aria-pressed="false" aria-label="Ativar modo escuro">☾</button></div>
   <div class="modal-content login-card">
     <div class="login-container">
       <div class="login-logo">
@@ -275,13 +276,13 @@
   </div>
 </div>
 
-<script src="supabase.js?v=34"></script>
-<script src="app.js?v=34"></script>
+<script src="supabase.js?v=35"></script>
+<script src="app.js?v=35"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=34"></script>
-<script src="nav.js?v=34"></script>
-<script src="produtos.js?v=34"></script>
-<script src="estoque.js?v=34"></script>
-<script src="dashboard.js?v=34"></script>
+<script src="performance.js?v=35"></script>
+<script src="nav.js?v=35"></script>
+<script src="produtos.js?v=35"></script>
+<script src="estoque.js?v=35"></script>
+<script src="dashboard.js?v=35"></script>
 </body>
 </html>
