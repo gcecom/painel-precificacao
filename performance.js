@@ -626,7 +626,7 @@ function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
 
 let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false;
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;AdsSummary.reset();resetPerformanceState();renderAdsSummary()};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
@@ -747,9 +747,10 @@ async function ensureMonthlyLoaded(){
   return true;
 }
 
-// Custos por unidade de um produto no marketplace atual, ao preço informado
-function monthlyUnit(p,price){
-  const base=(p.channels&&p.channels[curPlatform()])||(typeof channelDefaults==='function'?channelDefaults(curPlatform()):{});
+// Custos por unidade de um produto EM UM marketplace, ao preço informado.
+// Fonte única do cálculo: usada pelo Resultado Mensal e pelo Dashboard Geral.
+function unitCosts(p,price,plat){
+  const base=(p.channels&&p.channels[plat])||(typeof channelDefaults==='function'?channelDefaults(plat):{});
   // O "Preço médio" lançado no fechamento JÁ é o valor realizado no mês. Aplicar de novo
   // o desconto/cupom do cadastro faria as taxas incidirem sobre um preço menor que a
   // receita exibida, e a linha não fecharia (receita − custos ≠ lucro mostrado).
@@ -760,6 +761,11 @@ function monthlyUnit(p,price){
   }
   return{comm:0,frete:0,tax:0,cost:p.cost||0,profit:price-(p.cost||0),gross:price};
 }
+// Custos no marketplace atualmente selecionado (usado pela aba Resultado Mensal)
+function monthlyUnit(p,price){return unitCosts(p,price,curPlatform())}
+
+// API compartilhada com dashboard.js — evita reimplementar formatação e cálculo de custos
+window.PainelShared={unitCosts,fmtMoney,fmtPct,fmtInt,monthLabel:m=>monthLabel(m),thisMonth:()=>thisMonth(),calcTacos,calcAcos,kpi,esc};
 
 // "ads" = quanto foi gasto de anúncio POR VENDA daquele produto no mês (preenchido à mão,
 // porque nem toda venda vem do cenário simulado na aba Precificação).
@@ -982,15 +988,19 @@ function showView(v){
   el('pricingView').classList.toggle('hidden',v!=='pricing');
   el('performanceView').classList.toggle('hidden',v!=='perf');
   el('monthlyView').classList.toggle('hidden',v!=='monthly');
+  const dv=el('dashboardView');if(dv)dv.classList.toggle('hidden',v!=='dash');
   el('tabPricing').classList.toggle('active',v==='pricing');
   el('tabPerformance').classList.toggle('active',v==='perf');
   el('tabMonthly').classList.toggle('active',v==='monthly');
+  const dt=el('tabDashboard');if(dt)dt.classList.toggle('active',v==='dash');
   if(v==='perf'){if(simState){populatePerfProducts();renderSimTable();renderSingleSale()}renderAdsSummary()}
   if(v==='monthly')renderMonthly();
+  if(v==='dash'&&typeof window.renderDashboard==='function')window.renderDashboard();
 }
 el('tabPricing').onclick=()=>showView('pricing');
 el('tabPerformance').onclick=()=>showView('perf');
 el('tabMonthly').onclick=()=>showView('monthly');
+if(el('tabDashboard'))el('tabDashboard').onclick=()=>showView('dash');
 // Trocar o mês recarrega os lançamentos daquele mês (os outros meses continuam salvos)
 let monthlyLastMonth=null;
 el('monthlyMonth').onchange=()=>{

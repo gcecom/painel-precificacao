@@ -53,3 +53,29 @@ button,.btn,.chip{min-height:38px}
 .content>*,#performanceView>*,#monthlyView>*{min-width:0;max-width:100%}
 .panel,.panel-body,.overview,.monthly-toolbar{min-width:0;max-width:100%}
 .table-wrap{max-width:100%;overflow-x:auto}
+
+/* --- Dashboard Geral --- */
+.dash-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end;margin-bottom:8px}
+.dash-filter-actions{display:flex;gap:8px;flex-wrap:wrap}
+.dash-filter-actions .btn{flex:1 1 auto}
+.dash-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:15px;min-width:0}
+.dash-chart{min-width:0;max-width:100%}
+.dash-svg{width:100%;height:auto;max-width:100%;display:block;overflow:visible}
+.dash-donut{max-width:340px;margin:auto}
+.dash-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.dash-leg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--muted)}
+.dash-leg i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:0 0 auto}
+.dash-bars{display:grid;gap:7px}
+.dash-bar-row{display:grid;grid-template-columns:minmax(90px,34%) 1fr minmax(78px,auto);gap:9px;align-items:center;font-size:11px}
+.dash-bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--heading)}
+.dash-bar-track{height:10px;background:var(--track);border-radius:99px;overflow:hidden}
+.dash-bar-fill{display:block;height:100%;border-radius:99px}
+.dash-bar-val{text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.dash-bar-val.neg{color:var(--bad)}
+#dashboardView{display:grid;gap:15px;grid-template-columns:minmax(0,1fr)}
+#dashboardView>*{min-width:0;max-width:100%}
+@media(max-width:640px){
+  .dash-filters{grid-template-columns:1fr}
+  .dash-charts{grid-template-columns:1fr}
+  .dash-bar-row{grid-template-columns:minmax(72px,40%) 1fr auto;font-size:10px}
+}

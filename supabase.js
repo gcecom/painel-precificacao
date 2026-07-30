@@ -182,6 +182,28 @@ const supabaseClient = {
     } catch (e) { return [] }
   },
 
+  // ---------- Consultas consolidadas do Dashboard Geral ----------
+  // Uma query por tipo de dado cobrindo TODO o período/marketplaces (nunca 1 por produto).
+  async getMonthlySalesRange(userId, months) {
+    if (!months || !months.length) return [];
+    const list = months.map(m => `"${m}"`).join(',');
+    return this.request(`/monthly_sales?user_id=eq.${userId}&month=in.(${list})`);
+  },
+
+  async getAdsSummaryRange(userId, months) {
+    if (!months || !months.length) return [];
+    const list = months.map(m => `"${m}"`).join(',');
+    try { return await this.request(`/monthly_ads_summary?user_id=eq.${userId}&month=in.(${list})`) }
+    catch (e) { return [] }
+  },
+
+  async getMonthlyExpensesRange(userId, months) {
+    if (!months || !months.length) return [];
+    const list = months.map(m => `"${m}"`).join(',');
+    try { return await this.request(`/monthly_expenses?user_id=eq.${userId}&month=in.(${list})`) }
+    catch (e) { return [] }
+  },
+
   // ---------- Gastos gerais do mês (valor único do negócio, não por marketplace) ----------
   async getMonthlyExpenses(userId, month) {
     const rows = await this.request(`/monthly_expenses?user_id=eq.${userId}&month=eq.${month}&limit=1`);

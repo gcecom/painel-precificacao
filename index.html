@@ -7,10 +7,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=27">
+<link rel="stylesheet" href="styles.css?v=28">
 </head>
 <body>
-<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button></div></nav>
+<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button><button class="platform-btn view-tab" id="tabDashboard">Dashboard Geral</button></div></nav>
 
 <main class="app">
 <header class="topbar"><div class="brand"><h1 id="pageTitle">Painel de Precificação — Mercado Livre</h1><p>Lucro, ROI, ACOS, estoque, preço ideal e cenários de publicidade em um único motor.</p></div><div class="top-actions"><div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀ Claro</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾ Escuro</button></div><button class="btn" id="printBtn">Imprimir diagnóstico</button><button class="btn" id="exportBtn">Exportar dados</button><button class="btn" id="importBtn">Importar dados</button><input id="importFile" type="file" accept="application/json" hidden><button class="btn" id="logoutBtn">Sair</button></div></header>
@@ -82,6 +82,25 @@
 <div class="monthly-months" id="monthlyMonthList"></div>
 <section class="kpis" id="monthlyKpis"></section>
 <section class="panel"><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyTable"></table></div></div></section>
+</section>
+
+<section id="dashboardView" class="content hidden">
+<div class="overview"><h2>Dashboard Geral do negócio</h2><p>Consolida todos os marketplaces a partir dos meses <b>salvos</b> no Resultado Mensal. Gastos gerais entram uma única vez por mês.</p></div>
+<div class="dash-filters">
+  <div class="field"><label>De (mês)</label><input id="dashFrom" type="month"></div>
+  <div class="field"><label>Até (mês)</label><input id="dashTo" type="month"></div>
+  <div class="field"><label>Marketplace</label><select id="dashPlatform"><option value="">Todos</option></select></div>
+  <div class="field"><label>Categoria</label><select id="dashCategory"><option value="">Todas</option></select></div>
+  <div class="field"><label>Produto</label><select id="dashProduct"><option value="">Todos</option></select></div>
+  <div class="dash-filter-actions"><button class="btn" id="dashReload">Atualizar</button><button class="btn" id="dashExport">Exportar CSV</button></div>
+</div>
+<div class="help" id="dashStatus">Carregando…</div>
+<section class="kpis" id="dashKpis"></section>
+<section class="panel"><div class="panel-head"><h2>Insights do negócio</h2><span class="status neutral" id="dashInsightStatus">Regras automáticas</span></div><div class="panel-body perf-diags" id="dashInsights"></div></section>
+<div class="dash-charts" id="dashCharts"></div>
+<section class="panel"><div class="panel-head"><h2>Resumo por marketplace</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTablePlatform"></table></div></div></section>
+<section class="panel"><div class="panel-head"><h2>Resumo por produto</h2><span class="status neutral"><button type="button" class="btn small" id="dashToggleProducts">Ver todos</button></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableProduct"></table></div></div></section>
+<section class="panel"><div class="panel-head"><h2>Comparação mensal</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableMonth"></table></div></div></section>
 </section>
 </main>
 
@@ -157,9 +176,10 @@
   </div>
 </div>
 
-<script src="supabase.js?v=27"></script>
-<script src="app.js?v=27"></script>
+<script src="supabase.js?v=28"></script>
+<script src="app.js?v=28"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=27"></script>
+<script src="performance.js?v=28"></script>
+<script src="dashboard.js?v=28"></script>
 </body>
 </html>
