@@ -30,7 +30,10 @@ function idealPrice(p,c,roas){if(p.cost<=0)return NaN;let lo=.01,hi=Math.max(c.p
 
 function readForm(){let p=current(),c=currentChannel(p);if(!p)return{p:null,c:null};p.name=$('name').value.trim()||'Produto sem nome';p.sku=$('sku').value.trim();p.category=$('category').value;p.cost=n($('cost').value);for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;return{p,c}}
 
-function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=p.cost;for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])$(k).value=c[k]??0;for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])$(k).value=c[k];syncLabels();renderAll()}
+function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=p.cost;
+// Preço do canal já salvo tem prioridade; se ainda for 0, herda o "Preço de venda padrão" do cadastro (Produtos). Campo continua editável.
+if(!(+c.price>0)&&+p.default_price>0)c.price=+p.default_price;
+for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])$(k).value=c[k]??0;for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])$(k).value=c[k];syncLabels();renderAll()}
 
 function syncLabels(){let mode=$('adsMode').value;$('adsValueLabel').textContent=mode==='roas'?'ROAS atual (x)':mode==='cpa'?'CPA atual (R$)':'ACOS atual (%)';let units=$('purchaseMode').value==='units';$('investmentField').classList.toggle('hidden',units);$('quantityField').classList.toggle('hidden',!units)}
 
