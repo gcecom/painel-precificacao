@@ -10,10 +10,51 @@
 <link rel="stylesheet" href="styles.css?v=28">
 </head>
 <body>
-<nav class="platform-nav"><div class="brand-strip"></div><div class="platform-inner"><strong>Plataforma:</strong><button class="platform-btn" data-platform="shopee">Shopee</button><button class="platform-btn" data-platform="magalu">Magalu</button><button class="platform-btn active" data-platform="mercadolivre">Mercado Livre</button><button class="platform-btn" data-platform="amazon">Amazon</button><span class="nav-spacer"></span><button class="platform-btn view-tab active" id="tabPricing">Precificação</button><button class="platform-btn view-tab" id="tabPerformance">Avaliar Anúncio e Produto</button><button class="platform-btn view-tab" id="tabMonthly">Resultado Mensal</button><button class="platform-btn view-tab" id="tabDashboard">Dashboard Geral</button></div></nav>
+<div class="app-shell">
+<aside class="side-nav" id="sideNav">
+  <div class="side-brand">
+    <img class="side-bolt" src="assets/favicon-32.png?v=1" alt="">
+    <b class="side-name">FULL Ecommerce</b>
+    <button class="side-toggle" id="navToggle" type="button" aria-label="Recolher menu">‹</button>
+  </div>
+  <nav class="side-menu" id="sideMenu" aria-label="Módulos">
+    <button class="side-item" data-module="dash" data-view="dashboardView" data-title="Dashboard"><span class="si-ico">▤</span><span class="si-txt">Dashboard</span></button>
+    <button class="side-item" data-module="produtos" data-view="produtosView" data-title="Produtos"><span class="si-ico">◳</span><span class="si-txt">Produtos</span></button>
+    <button class="side-item" data-module="estoque" data-view="estoqueView" data-title="Estoque"><span class="si-ico">▦</span><span class="si-txt">Estoque</span></button>
+    <button class="side-item" data-module="vendas" data-view="monthlyView" data-title="Vendas — Resultado mensal" data-channel="1"><span class="si-ico">↗</span><span class="si-txt">Vendas</span></button>
+    <button class="side-item" data-module="precificacao" data-view="pricingView" data-title="Precificação" data-channel="1"><span class="si-ico">◈</span><span class="si-txt">Precificação</span></button>
+    <button class="side-item" data-module="anuncios" data-view="performanceView" data-title="Anúncios" data-channel="1"><span class="si-ico">◎</span><span class="si-txt">Anúncios</span></button>
+    <button class="side-item" data-module="financeiro" data-view="financeiroView" data-title="Financeiro"><span class="si-ico">$</span><span class="si-txt">Financeiro</span></button>
+    <button class="side-item" data-module="config" data-view="configView" data-title="Configurações"><span class="si-ico">⚙</span><span class="si-txt">Configurações</span></button>
+  </nav>
+</aside>
+<div class="nav-scrim" id="navScrim" hidden></div>
+<div class="app-main">
 
 <main class="app">
-<header class="topbar"><div class="brand"><h1 id="pageTitle">Painel de Precificação — Mercado Livre</h1><p>Lucro, ROI, ACOS, estoque, preço ideal e cenários de publicidade em um único motor.</p></div><div class="top-actions"><div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀ Claro</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾ Escuro</button></div><button class="btn" id="printBtn">Imprimir diagnóstico</button><button class="btn" id="exportBtn">Exportar dados</button><button class="btn" id="importBtn">Importar dados</button><input id="importFile" type="file" accept="application/json" hidden><button class="btn" id="logoutBtn">Sair</button></div></header>
+<header class="topbar">
+  <button class="nav-burger" id="navBurger" type="button" aria-label="Abrir menu">☰</button>
+  <img class="top-bolt" src="assets/favicon-32.png?v=1" alt="">
+  <h1 id="pageTitle">Dashboard</h1>
+  <div class="top-actions">
+    <label class="chan-pick" id="chanPick"><span>Canal</span>
+      <select id="platformSelect">
+        <option value="">Todos</option>
+        <option value="shopee">Shopee</option>
+        <option value="mercadolivre">Mercado Livre</option>
+        <option value="amazon">Amazon</option>
+        <option value="magalu">Magalu</option>
+      </select>
+    </label>
+    <div class="theme-toggle" role="group" aria-label="Tema do painel"><button class="theme-option active" id="lightThemeBtn" type="button" aria-pressed="true">☀</button><button class="theme-option" id="darkThemeBtn" type="button" aria-pressed="false">☾</button></div>
+    <span class="top-user" id="topUser" title=""></span>
+    <button class="btn" id="logoutBtn">Sair</button>
+  </div>
+  <div hidden aria-hidden="true">
+    <button class="platform-btn" data-platform="shopee"></button><button class="platform-btn" data-platform="magalu"></button><button class="platform-btn active" data-platform="mercadolivre"></button><button class="platform-btn" data-platform="amazon"></button>
+    <button id="printBtn"></button><button id="exportBtn"></button><button id="importBtn"></button><input id="importFile" type="file" accept="application/json">
+  </div>
+</header>
 
 <section class="grid-main" id="pricingView">
 <aside class="panel left"><div class="panel-head"><h2>Dados do produto</h2><span class="status neutral" id="editStatus">Editando produto</span></div><div class="panel-body">
@@ -102,7 +143,62 @@
 <section class="panel"><div class="panel-head"><h2>Resumo por produto</h2><span class="status neutral"><button type="button" class="btn small" id="dashToggleProducts">Ver todos</button></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableProduct"></table></div></div></section>
 <section class="panel"><div class="panel-head"><h2>Comparação mensal</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableMonth"></table></div></div></section>
 </section>
+
+<section id="produtosView" class="content hidden">
+<div class="overview"><h2>Cadastro central de produtos</h2><p>Fonte única de nome, SKU, categoria, custo e preço padrão. Os demais módulos leem daqui.</p></div>
+<div class="dash-filters">
+  <div class="field"><label>Buscar nome ou SKU</label><input id="prodSearch" placeholder="Digite para filtrar"></div>
+  <div class="field"><label>Categoria</label><select id="prodFilterCat"><option value="">Todas</option></select></div>
+  <div class="field"><label>Marketplace ativo</label><select id="prodFilterPlat"><option value="">Todos</option></select></div>
+  <div class="field"><label>Status</label><select id="prodFilterStatus"><option value="">Todos</option><option value="1">Ativos</option><option value="0">Inativos</option></select></div>
+  <div class="dash-filter-actions"><button class="btn primary" id="prodNew">Novo produto</button></div>
+</div>
+<section class="panel"><div class="panel-head"><h2 id="prodFormTitle">Editar produto</h2><span class="status neutral" id="prodStatus">Selecione um produto</span></div><div class="panel-body">
+  <div class="fields">
+    <div class="field full"><label>Nome do produto</label><input id="pcName"></div>
+    <div class="field"><label>SKU (identificador comercial)</label><input id="pcSku"></div>
+    <div class="field"><label>Categoria</label><input id="pcCategory" list="pcCatList"><datalist id="pcCatList"></datalist></div>
+    <div class="field"><label>Custo unitário (R$)</label><input id="pcCost" type="number" min="0" step=".01"></div>
+    <div class="field"><label>Preço de venda padrão (R$)</label><input id="pcPrice" type="number" min="0" step=".01"><div class="help">Valor inicial nas outras telas; não altera meses já salvos.</div></div>
+    <div class="field full"><label>Imagem (URL, opcional)</label><input id="pcImage" placeholder="https://..."></div>
+    <div class="field full"><label>Marketplaces ativos</label><div class="chips" id="pcPlatforms"></div></div>
+    <div class="field"><label>Status</label><select id="pcActive"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
+    <div class="field"><label>&nbsp;</label><div class="prod-thumb" id="pcThumb"></div></div>
+  </div>
+  <div class="form-actions"><button class="btn primary" id="pcSave">Salvar produto</button><button class="btn" id="pcToggle">Ativar / desativar</button><button class="btn danger" id="pcDelete">Excluir</button></div>
+</div></section>
+<section class="panel"><div class="panel-head"><h2>Produtos cadastrados</h2><span class="status neutral" id="prodCount"></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="prodTable"></table></div></div></section>
+</section>
+
+<section id="estoqueView" class="content hidden">
+<div class="overview"><h2>Estoque</h2><p>Quantidades e mínimos por produto. Custo e preço vêm do cadastro central.</p></div>
+<div class="dash-filters">
+  <div class="field"><label>Buscar nome ou SKU</label><input id="stSearch" placeholder="Digite para filtrar"></div>
+  <div class="field"><label>Categoria</label><select id="stCat"><option value="">Todas</option></select></div>
+  <div class="field"><label>Status</label><select id="stStatus"><option value="">Todos</option><option value="low">Estoque baixo</option><option value="out">Sem estoque</option><option value="ok">Estoque normal</option></select></div>
+  <div class="field"><label>Ordenar por</label><select id="stSort"><option value="value">Maior valor em estoque</option><option value="qtyDesc">Maior quantidade</option><option value="qtyAsc">Menor quantidade</option><option value="cost">Maior custo</option><option value="price">Maior preço de venda</option></select></div>
+  <div class="dash-filter-actions"><button class="btn primary" id="stSave">Salvar estoque</button></div>
+</div>
+<div class="help" id="stStatusMsg">&nbsp;</div>
+<section class="kpis" id="stKpis"></section>
+<div class="dash-charts" id="stCharts"></div>
+<section class="panel"><div class="panel-head"><h2>Posição de estoque</h2><span class="status neutral" id="stCount"></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="stTable"></table></div></div></section>
+</section>
+
+<section id="financeiroView" class="content hidden">
+<div class="overview"><h2>Financeiro</h2><p>DRE simplificada e comparativos.</p></div>
+<section class="panel"><div class="panel-body"><p class="help">Módulo previsto para a próxima etapa. Enquanto isso, o consolidado financeiro do período está no <b>Dashboard</b> e o fechamento por marketplace em <b>Vendas</b>.</p></div></section>
+</section>
+
+<section id="configView" class="content hidden">
+<div class="overview"><h2>Configurações</h2><p>Conta, aparência e dados.</p></div>
+<section class="panel"><div class="panel-head"><h2>Conta</h2></div><div class="panel-body"><p class="help" id="cfgUser"></p></div></section>
+<section class="panel"><div class="panel-head"><h2>Dados e backup</h2></div><div class="panel-body"><div class="form-actions"><button class="btn" id="cfgExport">Exportar dados (JSON)</button><button class="btn" id="cfgImport">Importar dados (JSON)</button><button class="btn" id="cfgPrint">Imprimir tela atual</button></div></div></section>
+<section class="panel"><div class="panel-head"><h2>Perfis de acesso</h2></div><div class="panel-body"><p class="help">Administrador, Financeiro, Comercial, Estoque e Consulta serão configuráveis em etapa futura. Hoje todo login autenticado tem acesso completo aos próprios dados (isolados por RLS).</p></div></section>
+</section>
 </main>
+</div>
+</div>
 
 <div id="loginModal" class="modal hidden">
   <div class="modal-content login-card">
@@ -180,6 +276,9 @@
 <script src="app.js?v=28"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="performance.js?v=28"></script>
+<script src="nav.js?v=28"></script>
+<script src="produtos.js?v=28"></script>
+<script src="estoque.js?v=28"></script>
 <script src="dashboard.js?v=28"></script>
 </body>
 </html>

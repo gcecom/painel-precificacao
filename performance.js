@@ -984,23 +984,14 @@ function renderMonthlyKpis(rows){
     kpi('TACOS',fmtPct(tacos),spend>0?'Gasto ÷ faturamento total':'—');
 }
 
+// O roteador (nav.js) já cuida de mostrar/esconder as views e do título.
+// Aqui só disparamos o render da tela que ficou visível.
 function showView(v){
-  el('pricingView').classList.toggle('hidden',v!=='pricing');
-  el('performanceView').classList.toggle('hidden',v!=='perf');
-  el('monthlyView').classList.toggle('hidden',v!=='monthly');
-  const dv=el('dashboardView');if(dv)dv.classList.toggle('hidden',v!=='dash');
-  el('tabPricing').classList.toggle('active',v==='pricing');
-  el('tabPerformance').classList.toggle('active',v==='perf');
-  el('tabMonthly').classList.toggle('active',v==='monthly');
-  const dt=el('tabDashboard');if(dt)dt.classList.toggle('active',v==='dash');
   if(v==='perf'){if(simState){populatePerfProducts();renderSimTable();renderSingleSale()}renderAdsSummary()}
   if(v==='monthly')renderMonthly();
   if(v==='dash'&&typeof window.renderDashboard==='function')window.renderDashboard();
 }
-el('tabPricing').onclick=()=>showView('pricing');
-el('tabPerformance').onclick=()=>showView('perf');
-el('tabMonthly').onclick=()=>showView('monthly');
-if(el('tabDashboard'))el('tabDashboard').onclick=()=>showView('dash');
+window.showViewExternal=showView;
 // Trocar o mês recarrega os lançamentos daquele mês (os outros meses continuam salvos)
 let monthlyLastMonth=null;
 el('monthlyMonth').onchange=()=>{

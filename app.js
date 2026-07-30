@@ -113,7 +113,7 @@ async function loadProducts(){
 
 function resetMonthlyState(){try{if(typeof window.resetMonthlyCache==='function')window.resetMonthlyCache()}catch(e){}}
 
-async function initAuth(){let user=await supabaseClient.getCurrentUser();if(user){currentUser=user;$('loginModal').classList.add('hidden');resetMonthlyState();await loadProducts();$('logoutBtn').style.display='block'}else{currentUser=null;products=[];selectedId='';resetMonthlyState();$('loginModal').classList.remove('hidden');$('logoutBtn').style.display='none'}}
+async function initAuth(){let user=await supabaseClient.getCurrentUser();if(user){currentUser=user;if(typeof window.navSetUser==='function')window.navSetUser(user.email||'');$('loginModal').classList.add('hidden');resetMonthlyState();await loadProducts();$('logoutBtn').style.display='block'}else{currentUser=null;products=[];selectedId='';resetMonthlyState();if(typeof window.navSetUser==='function')window.navSetUser('');$('loginModal').classList.remove('hidden');$('logoutBtn').style.display='none'}}
 
 // Se o token expirar/for revogado em qualquer requisição, volta pra tela de login em vez de continuar mostrando dados desatualizados
 supabaseClient.onAuthExpired=()=>{currentUser=null;products=[];selectedId='';resetMonthlyState();$('loginModal').classList.remove('hidden');$('logoutBtn').style.display='none'};

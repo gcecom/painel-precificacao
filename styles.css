@@ -79,3 +79,50 @@ button,.btn,.chip{min-height:38px}
   .dash-charts{grid-template-columns:1fr}
   .dash-bar-row{grid-template-columns:minmax(72px,40%) 1fr auto;font-size:10px}
 }
+
+/* ================= NAVEGAÇÃO POR MÓDULOS ================= */
+.app-shell{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100vh}
+body.nav-collapsed .app-shell{grid-template-columns:64px minmax(0,1fr)}
+.app-main{min-width:0}
+.side-nav{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:6px;padding:12px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+.side-brand{display:flex;align-items:center;gap:9px;padding:6px 6px 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.side-bolt{width:26px;height:26px;object-fit:contain;background:#fff;border-radius:7px;padding:3px;flex:0 0 auto}
+.side-name{font-size:13px;font-weight:900;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-toggle{margin-left:auto;border:1px solid var(--line);background:var(--control);color:var(--muted);border-radius:8px;width:26px;height:26px;cursor:pointer;font-weight:900;flex:0 0 auto}
+.side-menu{display:grid;gap:4px}
+.side-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid transparent;background:transparent;color:var(--text);padding:10px 10px;border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;min-height:42px}
+.side-item:hover{background:var(--soft)}
+.side-item.active{background:var(--brand);color:var(--brand-ink);border-color:transparent;font-weight:900}
+.si-ico{width:20px;text-align:center;font-size:14px;flex:0 0 auto}
+body.nav-collapsed .side-name,body.nav-collapsed .si-txt{display:none}
+body.nav-collapsed .side-item{justify-content:center;padding:10px 4px}
+body.nav-collapsed .side-brand{justify-content:center;padding:6px 0 12px}
+body.nav-collapsed .side-toggle{margin:0}
+.nav-scrim{display:none}
+.nav-burger{display:none;border:1px solid var(--line);background:var(--control);color:var(--text);border-radius:9px;width:38px;height:38px;font-size:16px;cursor:pointer;flex:0 0 auto}
+/* topbar enxuto */
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top-bolt{width:24px;height:24px;object-fit:contain;background:#fff;border-radius:6px;padding:2px;flex:0 0 auto}
+.topbar h1{margin:0;font-size:18px;color:var(--heading);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chan-pick{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.chan-pick select{padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--control);color:var(--text);font-weight:700;min-height:38px}
+.top-user{font-size:12px;font-weight:800;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.theme-toggle{order:0}
+.theme-option{min-width:42px;padding:8px 10px}
+.prod-thumb{width:64px;height:64px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);display:grid;place-items:center;overflow:hidden}
+.prod-thumb img{width:100%;height:100%;object-fit:contain}
+.chip.on{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+@media(max-width:900px){
+  .app-shell{grid-template-columns:minmax(0,1fr)}
+  .side-nav{position:fixed;z-index:60;left:0;top:0;width:250px;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+  body.nav-open .side-nav{transform:none}
+  body.nav-collapsed .side-nav{width:250px}
+  body.nav-collapsed .side-name,body.nav-collapsed .si-txt{display:inline}
+  body.nav-collapsed .side-item{justify-content:flex-start;padding:10px}
+  .side-toggle{display:none}
+  .nav-burger{display:inline-block}
+  .nav-scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:55}
+  .nav-scrim[hidden]{display:none}
+  .topbar h1{font-size:16px;flex:1 1 100%;order:3}
+}
+@media print{.side-nav,.nav-burger,.nav-scrim,.chan-pick{display:none!important}.app-shell{display:block}}
