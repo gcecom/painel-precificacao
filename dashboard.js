@@ -221,61 +221,46 @@ const MARGEM_MIN=0.05; // limite configurável de margem baixa (5%)
 function renderAlerts(a){
   const box=el('dashAlerts');if(!box)return;
   const out=[];
-  const push=(lvl,t,txt)=>out.push([lvl,t,txt]);
+  // Cada alerta é uma linha curta: [nível, texto objetivo, ação sugerida]
+  const push=(lvl,txt,acao)=>out.push([lvl,txt,acao||'']);
   const st=stock;
 
-  // --- estoque ---
+  // --- estoque (críticos) ---
   if(st){
     const sem=st.rows.filter(r=>r.status==='out'&&r.p.active!==false);
     const baixo=st.rows.filter(r=>r.status==='low');
-    if(sem.length)push('bad','Produto sem estoque',`${sem.length} produto(s) ativo(s) com quantidade zero: ${sem.slice(0,4).map(r=>r.p.name).join(', ')}${sem.length>4?'…':''}.`);
-    if(baixo.length)push('warn','Estoque abaixo do mínimo',`${baixo.length} produto(s) no ou abaixo do mínimo: ${baixo.slice(0,4).map(r=>r.p.name+' ('+fmtInt(r.qty)+'/'+fmtInt(r.min)+')').join(', ')}.`);
-    // produto rentável com risco de falta / vendeu e está com estoque baixo
-    Object.entries(a.byProd).forEach(([id,v])=>{
-      const r=st.rows.find(x=>x.p.id===id);if(!r)return;
-      const lucro=v.operational-v.ads;
-      if(lucro>0&&r.status!=='ok')push('bad','Produto rentável com risco de falta',`"${v.name}" lucrou ${fmtMoney(lucro)} no período e está com ${fmtInt(r.qty)} em estoque (mínimo ${fmtInt(r.min)}).`);
-    });
-    // estoque alto com baixa saída
-    st.rows.forEach(r=>{
-      const v=a.byProd[r.p.id];
-      const vendeu=v?v.units:0;
-      if(r.value>0&&r.qty>=10&&vendeu===0)push('warn','Estoque alto com baixa saída',`"${r.p.name}" tem ${fmtInt(r.qty)} unidades (${fmtMoney(r.value)} parados) e nenhuma venda no período.`);
-    });
-    // produto sem vendas no período
-    const semVenda=st.rows.filter(r=>r.p.active!==false&&!(a.byProd[r.p.id]&&a.byProd[r.p.id].units>0));
-    if(semVenda.length&&semVenda.length!==st.rows.length)push('warn','Produto sem vendas no período',`${semVenda.length} produto(s) ativo(s) sem nenhuma unidade vendida.`);
+    // produto rentável zerado/baixo é o mais crítico
+    const risco=Object.entries(a.byProd).map(([id,v])=>{
+      const r=st.rows.find(x=>x.p.id===id);
+      return r&&r.status!=='ok'&&(v.operational-v.ads)>0?{name:v.name,qty:r.qty}:null;
+    }).filter(Boolean);
+    if(risco.length)push('bad',`${risco.length} produto(s) rentável(is) com estoque baixo (${risco[0].name})`,'Repor estoque');
+    if(sem.length)push('bad',`${sem.length} produto(s) sem estoque`,'Repor estoque');
+    if(baixo.length)push('warn',`${baixo.length} produto(s) abaixo do mínimo`,'Repor estoque');
   }
 
-  // --- margem e Ads ---
-  if(Number.isFinite(a.margemLiquida)){
-    if(a.margemLiquida<0)push('bad','Margem negativa',`O período fechou com margem de ${fmtPct(a.margemLiquida)} — o lucro líquido é ${fmtMoney(a.liquido)}.`);
-    else if(a.margemLiquida<MARGEM_MIN)push('warn','Margem abaixo do limite',`Margem de ${fmtPct(a.margemLiquida)}, abaixo do mínimo de ${fmtPct(MARGEM_MIN)} definido no painel.`);
-  }
-  if(Number.isFinite(a.tacos)){
-    if(a.tacos>0.20)push('bad','TACOS elevado',`Ads consumiu ${fmtPct(a.tacos)} do faturamento (acima de 20%).`);
-    if(Number.isFinite(a.margemLiquida)&&a.tacos>a.margemLiquida)push('bad','Ads acima da margem suportada',`TACOS de ${fmtPct(a.tacos)} é maior que a margem líquida de ${fmtPct(a.margemLiquida)} — os anúncios estão comendo o lucro.`);
-  }
-  Object.entries(a.byProd).forEach(([id,v])=>{
-    const l=v.operational-v.ads,m=RATIO(l,v.rev);
-    if(v.rev>0&&Number.isFinite(m)&&m<0)push('bad','Produto com margem negativa',`"${v.name}" deu prejuízo de ${fmtMoney(Math.abs(l))} (margem ${fmtPct(m)}).`);
-  });
+  // --- margem e Ads (críticos) ---
+  if(Number.isFinite(a.margemLiquida)&&a.margemLiquida<0)push('bad',`Margem líquida negativa (${fmtPct(a.margemLiquida)})`,'Revisar margem');
+  else if(Number.isFinite(a.margemLiquida)&&a.margemLiquida<MARGEM_MIN)push('warn',`Margem abaixo de ${fmtPct(MARGEM_MIN)} (${fmtPct(a.margemLiquida)})`,'Revisar margem');
+  if(Number.isFinite(a.tacos)&&Number.isFinite(a.margemLiquida)&&a.tacos>a.margemLiquida)push('bad',`TACOS (${fmtPct(a.tacos)}) acima da margem (${fmtPct(a.margemLiquida)})`,'Revisar Ads');
+  else if(Number.isFinite(a.tacos)&&a.tacos>0.20)push('bad',`TACOS elevado (${fmtPct(a.tacos)})`,'Revisar Ads');
+  const prej=Object.entries(a.byProd).filter(([id,v])=>v.rev>0&&(v.operational-v.ads)<0);
+  if(prej.length)push('bad',`${prej.length} produto(s) no prejuízo (${prej[0][1].name})`,'Revisar preço');
 
-  // --- quedas em relação ao período anterior ---
+  // --- quedas (atenção) ---
   if(aggPrev&&aggPrev.total.rev>0){
-    if(a.total.rev<aggPrev.total.rev)push('warn','Queda de faturamento',`Faturamento caiu ${fmtMoney(aggPrev.total.rev-a.total.rev)} (${fmtPct((aggPrev.total.rev-a.total.rev)/aggPrev.total.rev)}) em relação ao período anterior.`);
-    if(a.liquido<aggPrev.liquido)push('warn','Queda de lucro',`Lucro líquido caiu ${fmtMoney(aggPrev.liquido-a.liquido)} em relação ao período anterior.`);
+    if(a.total.rev<aggPrev.total.rev)push('warn',`Faturamento caiu ${fmtPct((aggPrev.total.rev-a.total.rev)/aggPrev.total.rev)} vs. período anterior`,'');
+    if(a.liquido<aggPrev.liquido)push('warn','Lucro líquido caiu vs. período anterior','');
   }
 
-  const order={bad:0,warn:1,good:2};
+  const order={bad:0,warn:1};
   out.sort((x,y)=>order[x[0]]-order[y[0]]);
   const dedup=[];const seen=new Set();
-  for(const it of out){const k=it[0]+'|'+it[1]+'|'+it[2];if(!seen.has(k)){seen.add(k);dedup.push(it)}}
-  const shown=dedup.slice(0,14);
+  for(const it of out){if(!seen.has(it[1])){seen.add(it[1]);dedup.push(it)}}
+  const shown=dedup.slice(0,5); // no máximo 5, críticos primeiro
   box.innerHTML=shown.length
-    ? shown.map(([l,t,txt])=>`<div class="diag ${l==='bad'?'badbox':l==='warn'?'warnbox':''}"><h3>${esc(t)}</h3><p>${esc(txt)}</p></div>`).join('')
-      +(dedup.length>shown.length?`<p class="help">+${dedup.length-shown.length} outro(s) ponto(s) de atenção.</p>`:'')
-    : '<div class="diag"><h3>Nada crítico no período</h3><p>Sem produtos zerados, margem negativa ou TACOS acima do limite.</p></div>';
+    ? '<ul class="alert-list">'+shown.map(([l,txt,acao])=>`<li class="alert-row ${l}"><span class="alert-dot" aria-hidden="true"></span><span class="alert-txt">${esc(txt)}</span>${acao?`<span class="alert-act">${esc(acao)}</span>`:''}</li>`).join('')+'</ul>'
+    : '<p class="help">Nada crítico no período — sem estoque zerado, margem negativa ou TACOS acima do limite.</p>';
   const stt=el('dashAlertStatus');
   if(stt){
     const worst=shown.length?shown[0][0]:'good';
