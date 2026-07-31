@@ -398,8 +398,6 @@ function renderTables(a){
 
 // ---------- filtros ----------
 function fillFilters(){
-  const sel=el('dashPlatform');
-  if(sel.options.length<=1)platformList().forEach(k=>sel.add(new Option(platformName(k),k)));
   const cats=[...new Set(allProducts().map(p=>p.category).filter(Boolean))].sort();
   const c=el('dashCategory'),keepC=c.value;
   c.innerHTML='<option value="">Todas</option>'+cats.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
@@ -446,7 +444,7 @@ async function renderDashboard(force){
     const union=prev.concat(months);
     if(force||!raw||raw._months!==union.join(','))
       { await loadRaw(union); raw._months=union.join(','); }
-    const fP=el('dashPlatform').value,fPr=el('dashProduct').value,fC=el('dashCategory').value;
+    const fP='',fPr=el('dashProduct').value,fC=el('dashCategory').value; // Dashboard sempre consolida todos os marketplaces
     agg=aggregate(months,fP,fPr,fC);
     // comparação só existe se o período anterior tiver algum dado salvo
     const p=aggregate(prev,fP,fPr,fC);
@@ -483,7 +481,7 @@ function exportCsv(){
 
 // ---------- eventos ----------
 ['dashFrom','dashTo'].forEach(id=>el(id)&&(el(id).onchange=()=>renderDashboard(true)));
-['dashPlatform','dashProduct'].forEach(id=>el(id)&&(el(id).onchange=()=>renderDashboard(false)));
+if(el('dashProduct'))el('dashProduct').onchange=()=>renderDashboard(false);
 if(el('dashCategory'))el('dashCategory').onchange=()=>{el('dashProduct').value='';fillFilters();renderDashboard(false)};
 if(el('dashReload'))el('dashReload').onclick=()=>renderDashboard(true);
 if(el('dashExport'))el('dashExport').onclick=exportCsv;
