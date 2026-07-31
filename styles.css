@@ -148,3 +148,10 @@ body.nav-collapsed .side-toggle{margin:0}
 .alert-act{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;background:var(--soft);color:var(--heading);white-space:nowrap}
 .alert-row.bad .alert-act{background:var(--badbg);color:var(--bad)}
 .alert-row.warn .alert-act{background:var(--warnbg);color:var(--warn)}
+
+/* Cores de marketplace: contorno sutil para o amarelo (ML) manter contraste
+   nos dois temas — legenda, bolinha e barras. Não altera a cor oficial. */
+.dash-leg i{box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+html[data-theme="dark"] .dash-leg i{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+.dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}

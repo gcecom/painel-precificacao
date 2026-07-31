@@ -130,6 +130,10 @@ function aggregate(months,fPlat,fProd,fCat){
 
 // ---------- gráficos em SVG (sem dependência externa; segue o estilo do painel) ----------
 const CH=['#3483fa','#17803d','#d97706','#7656a8','#ee4d2d','#0086ff','#c52c2c','#0f766e','#a16207','#4b5563'];
+// Cores oficiais dos marketplaces — fixas por canal (não pela ordem dos dados).
+const PLAT_COLORS={mercadolivre:'#FFE600',shopee:'#EE4D2D',amazon:'#FF9900',magalu:'#0086FF'};
+const BRAND_NEUTRAL='#3483fa'; // "Todos"/consolidado
+function platColor(k){return PLAT_COLORS[k]||BRAND_NEUTRAL}
 function chartCard(title,body,note){
   return`<section class="panel dash-chart"><div class="panel-head"><h2>${esc(title)}</h2></div><div class="panel-body">${body}${note?`<p class="help">${esc(note)}</p>`:''}</div></section>`;
 }
@@ -179,11 +183,11 @@ function doughnut(items){
   let svg=`<svg class="dash-svg dash-donut" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" role="img"><g transform="translate(80,80)">`;
   items.forEach((it,i)=>{
     const frac=Math.max(0,it.value)/tot;if(frac<=0)return;
-    svg+=`<circle r="${R}" fill="none" stroke="${CH[i%CH.length]}" stroke-width="26" stroke-dasharray="${frac*C} ${C}" stroke-dashoffset="${-off*C}" transform="rotate(-90)"><title>${esc(it.label)}: ${fmtPct(frac)}</title></circle>`;
+    svg+=`<circle r="${R}" fill="none" stroke="${it.color||CH[i%CH.length]}" stroke-width="26" stroke-dasharray="${frac*C} ${C}" stroke-dashoffset="${-off*C}" transform="rotate(-90)"><title>${esc(it.label)}: ${fmtPct(frac)}</title></circle>`;
     off+=frac;
   });
   svg+='</g></svg>';
-  const leg=items.filter(i=>i.value>0).map((it,i)=>`<span class="dash-leg"><i style="background:${CH[i%CH.length]}"></i>${esc(it.label)} · ${fmtPct(Math.max(0,it.value)/tot)}</span>`).join('');
+  const leg=items.filter(i=>i.value>0).map((it,i)=>`<span class="dash-leg"><i style="background:${it.color||CH[i%CH.length]}"></i>${esc(it.label)} · ${fmtPct(Math.max(0,it.value)/tot)}</span>`).join('');
   return svg+`<div class="dash-legend">${leg}</div>`;
 }
 
@@ -201,7 +205,7 @@ function renderCharts(a){
   });
   const adsByMonth=months.map(m=>a.byMonth[m].ads);
   const labels=months.map(monthLabel);
-  const plats=Object.entries(a.byPlat).map(([k,v])=>({label:platformName(k),value:v.rev}));
+  const plats=Object.entries(a.byPlat).map(([k,v])=>({label:platformName(k),value:v.rev,color:platColor(k)}));
   const N=showAllProducts?999:10;
 
   el('dashCharts').innerHTML=
