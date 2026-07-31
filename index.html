@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=41">
+<link rel="stylesheet" href="styles.css?v=42">
 </head>
 <body>
 <div class="app-shell">
@@ -188,8 +188,14 @@
 </section>
 
 <section id="financeiroView" class="content hidden">
-<div class="overview"><h2>Financeiro</h2><p>DRE simplificada e comparativos.</p></div>
-<section class="panel"><div class="panel-body"><p class="help">Módulo previsto para a próxima etapa. Enquanto isso, o consolidado financeiro do período está no <b>Dashboard</b> e o fechamento por marketplace em <b>Vendas</b>.</p></div></section>
+<div class="overview"><h2>Financeiro</h2><p>DRE simplificada do período — mesma consolidação do Dashboard (dados salvos em Vendas).</p></div>
+<div class="dash-filters">
+  <div class="field"><label>De (mês)</label><input id="finFrom" type="month"></div>
+  <div class="field"><label>Até (mês)</label><input id="finTo" type="month"></div>
+  <div class="dash-filter-actions"><button class="btn" id="finReload">Atualizar</button></div>
+</div>
+<div class="help" id="finStatus">&nbsp;</div>
+<section class="panel"><div class="panel-head"><h2>DRE simplificada</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="finDre"></table></div></div></section>
 </section>
 
 <section id="configView" class="content hidden">
@@ -275,13 +281,15 @@
   </div>
 </div>
 
-<script src="supabase.js?v=41"></script>
-<script src="app.js?v=41"></script>
+<script src="supabase.js?v=42"></script>
+<script src="app.js?v=42"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=41"></script>
-<script src="nav.js?v=41"></script>
-<script src="produtos.js?v=41"></script>
-<script src="estoque.js?v=41"></script>
-<script src="dashboard.js?v=41"></script>
+<script src="performance.js?v=42"></script>
+<script src="nav.js?v=42"></script>
+<script src="produtos.js?v=42"></script>
+<script src="estoque.js?v=42"></script>
+<script src="consolida.js?v=42"></script>
+<script src="dashboard.js?v=42"></script>
+<script src="financeiro.js?v=42"></script>
 </body>
 </html>

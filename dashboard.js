@@ -57,75 +57,11 @@ function prevMonths(months){
 
 // ---------- agregação (fonte única) ----------
 // Retorna totais globais + quebras por marketplace, produto e mês.
+// Wrapper fino: toda a lógica de consolidação vive em consolida.js (fonte única,
+// reutilizada pelo Financeiro). O Dashboard só passa os dados brutos e os filtros.
 function aggregate(months,fPlat,fProd,fCat){
-  const prods=allProducts(),byId={};prods.forEach(p=>{byId[p.id]=p});
-  const inCat=p=>!fCat||(p&&p.category===fCat);
-  const inProd=id=>!fProd||id===fProd;
-
-  // Ads por (marketplace|mês) — 1 valor, sem duplicar
-  const adsByKey={};
-  (raw.ads||[]).forEach(r=>{if(months.includes(r.month))adsByKey[r.platform+'|'+r.month]=+r.ads_spend||0});
-  // Gastos gerais por mês — 1 valor por mês
-  const expByMonth={};
-  (raw.exp||[]).forEach(r=>{if(months.includes(r.month))expByMonth[r.month]=+r.amount||0});
-
-  // 1) linhas de venda -> receita e custos por (produto, marketplace, mês)
-  const seen={};const lines=[];
-  (raw.sales||[]).forEach(r=>{
-    if(!months.includes(r.month))return;
-    const dedup=r.user_id+'|'+r.platform+'|'+r.product_id+'|'+r.month;
-    if(seen[dedup])return; // nunca soma registro duplicado do mesmo user/mkt/produto/mês
-    seen[dedup]=true;
-    const p=byId[r.product_id];if(!p)return;
-    const ch=(p.channels&&p.channels[r.platform])||{};
-    const units=+r.units||0;
-    const price=+r.price>0?+r.price:(ch.price||0);
-    if(units<=0&&price<=0)return;
-    const u=S().unitCosts?S().unitCosts(p,price,r.platform):{comm:0,frete:0,tax:0,cost:p.cost||0,profit:0};
-    lines.push({p,plat:r.platform,month:r.month,units,price,rev:units*price,
-      comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,
-      operational:u.profit*units}); // lucro ANTES dos Ads mensais
-  });
-
-  // 2) rateio do Ads: pct real de cada (marketplace|mês) usando o faturamento TOTAL
-  //    daquele marketplace/mês (denominador completo => pct verdadeiro do período)
-  const revByKey={};
-  lines.forEach(l=>{revByKey[l.plat+'|'+l.month]=(revByKey[l.plat+'|'+l.month]||0)+l.rev});
-  lines.forEach(l=>{
-    const key=l.plat+'|'+l.month;
-    const spend=adsByKey[key]||0,revK=revByKey[key]||0;
-    l.ads=revK>0?l.rev*(spend/revK):0;
-  });
-
-  // 3) aplica filtros DEPOIS do rateio (o pct não muda com o filtro)
-  const sel=lines.filter(l=>(!fPlat||l.plat===fPlat)&&inProd(l.p.id)&&inCat(l.p));
-
-  const zero=()=>({rev:0,units:0,ads:0,comm:0,frete:0,tax:0,cost:0,operational:0});
-  const add=(a,l)=>{a.rev+=l.rev;a.units+=l.units;a.ads+=l.ads;a.comm+=l.comm;a.frete+=l.frete;a.tax+=l.tax;a.cost+=l.cost;a.operational+=l.operational;return a};
-
-  const total=sel.reduce((a,l)=>add(a,l),zero());
-  const byPlat={},byProd={},byMonth={};
-  sel.forEach(l=>{
-    (byPlat[l.plat]=byPlat[l.plat]||zero(),add(byPlat[l.plat],l));
-    (byProd[l.p.id]=byProd[l.p.id]||Object.assign(zero(),{name:l.p.name,sku:l.p.sku,cat:l.p.category}),add(byProd[l.p.id],l));
-    (byMonth[l.month]=byMonth[l.month]||zero(),add(byMonth[l.month],l));
-  });
-
-  // Gastos gerais: UMA vez por mês. Só nos meses que têm movimento selecionado
-  // (senão um período largo somaria despesa de mês sem venda nenhuma).
-  const monthsWithData=Object.keys(byMonth).sort();
-  const gerais=monthsWithData.reduce((a,m)=>a+(expByMonth[m]||0),0);
-  // Sem filtro de produto/marketplace o rateio devolve exatamente o Ads informado
-  const adsTotal=total.ads;
-  const liquido=total.operational-adsTotal-gerais;
-
-  return{
-    months:monthsWithData,total,byPlat,byProd,byMonth,expByMonth,adsByKey,
-    gerais,adsTotal,liquido,
-    margemLiquida:RATIO(liquido,total.rev),
-    tacos:RATIO(adsTotal,total.rev),
-    filtered:!!(fPlat||fProd||fCat)
-  };
+  return window.PainelConsolida.consolidar(raw,allProducts(),months,
+    {fPlat,fProd,fCat,unitCosts:S().unitCosts});
 }
 
 // ---------- gráficos em SVG (sem dependência externa; segue o estilo do painel) ----------

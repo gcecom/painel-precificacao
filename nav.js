@@ -53,6 +53,7 @@ function go(mod,opts){
   if(map[view]&&typeof window.showViewExternal==='function')window.showViewExternal(map[view]);
   if(view==='produtosView'&&typeof window.renderProdutos==='function')window.renderProdutos();
   if(view==='estoqueView'&&typeof window.renderEstoque==='function')window.renderEstoque();
+  if(view==='financeiroView'&&typeof window.renderFinanceiro==='function')window.renderFinanceiro();
   if(view==='configView'){const u=el('cfgUser');if(u){let e='';try{e=(currentUser&&currentUser.email)||''}catch(x){}u.textContent=e?('Conectado como '+e):'Faça login para ver os dados da conta.'}}
   if(!opts||!opts.silent)window.scrollTo({top:0,behavior:'instant'});
 }
