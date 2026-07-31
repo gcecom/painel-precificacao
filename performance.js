@@ -37,6 +37,7 @@ window.resetPerformanceState=resetPerformanceState;
 const META_WANT={
   produto:['nome do produto / anuncio','nome do produto/anuncio','nome do produto','produto'],
   id:['id do produto','id do item','id do anuncio'],
+  sku:['sku','codigo do produto','codigo (sku)','seller sku','codigo'],
   campanha:['nome da campanha','campanha','tipo de campanha'],
   loja:['nome da loja','loja'],
   idLoja:['id da loja'],
@@ -368,7 +369,15 @@ function populatePerfProducts(){
 // Casa o produto do relatório com um produto salvo (maior sobreposição de palavras)
 function autoMatchProduct(){
   const sel=el('perfProductSelect');if(!sel||sel.value)return;
-  const m=mergedMeta();const name=norm(m.produto||'');if(!name)return;
+  const m=mergedMeta();
+  // 1) vínculo forte: SKU/ID do relatório = SKU do produto central (nunca só pelo nome)
+  const ids=[m.sku,m.id].map(x=>norm(x||'')).filter(Boolean);
+  if(ids.length){
+    const bySku=savedProducts().find(p=>p.sku&&ids.includes(norm(p.sku)));
+    if(bySku){sel.value=bySku.id;return}
+  }
+  // 2) fallback: sobreposição de palavras do nome (apenas sugestão, usuário confirma)
+  const name=norm(m.produto||'');if(!name)return;
   const tokens=name.split(/[^a-z0-9]+/).filter(t=>t.length>2);
   let best=null,bestScore=0;
   for(const p of savedProducts()){

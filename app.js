@@ -28,7 +28,9 @@ function calcAt(p,c,price,roasOverride){let gross=n(price),net=gross*(1-n(c.disc
 
 function idealPrice(p,c,roas){if(p.cost<=0)return NaN;let lo=.01,hi=Math.max(c.price*2,p.cost*5,100);const target=Number(c.targetMargin)/100;for(let i=0;i<30&&calcAt(p,c,hi,roas).margin<target;i++)hi*=2;if(hi>1e7)return NaN;for(let i=0;i<80;i++){let mid=(lo+hi)/2;if(calcAt(p,c,mid,roas).margin>=target)hi=mid;else lo=mid}return Math.ceil(hi*100)/100}
 
-function readForm(){let p=current(),c=currentChannel(p);if(!p)return{p:null,c:null};p.name=$('name').value.trim()||'Produto sem nome';p.sku=$('sku').value.trim();p.category=$('category').value;p.cost=n($('cost').value);for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;return{p,c}}
+// Precificação = simulação por canal. Nome/SKU/categoria/custo são do cadastro central
+// (Produtos) e NÃO são reescritos aqui — só a precificação do canal (c[...]) é editada.
+function readForm(){let p=current(),c=currentChannel(p);if(!p)return{p:null,c:null};for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;return{p,c}}
 
 function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=p.cost;
 // Preço do canal já salvo tem prioridade; se ainda for 0, herda o "Preço de venda padrão" do cadastro (Produtos). Campo continua editável.
