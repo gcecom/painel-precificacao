@@ -28,7 +28,9 @@ function consolidar(raw, products, months, opts){
   (raw.ads||[]).forEach(r=>{if(monthSet.has(r.month))adsByKey[r.platform+'|'+r.month]=+r.ads_spend||0});
   // Gastos gerais por mês — 1 valor por mês
   const expByMonth={};
-  (raw.exp||[]).forEach(r=>{if(monthSet.has(r.month))expByMonth[r.month]=+r.amount||0});
+  // DAS pago no mês (oficial, informado) — 1 valor por mês, nunca por marketplace
+  const dasByMonth={};
+  (raw.exp||[]).forEach(r=>{if(monthSet.has(r.month)){expByMonth[r.month]=+r.amount||0;dasByMonth[r.month]=+r.das||0}});
 
   // 1) linhas de venda -> receita e custos por (produto, marketplace, mês)
   const seen={};const lines=[];
@@ -71,15 +73,18 @@ function consolidar(raw, products, months, opts){
     (byMonth[l.month]=byMonth[l.month]||zero(),add(byMonth[l.month],l));
   });
 
-  // Gastos gerais: 1x por mês, só nos meses com movimento selecionado
+  // Gastos gerais e DAS: 1x por mês, só nos meses com movimento selecionado
   const monthsWithData=Object.keys(byMonth).sort();
   const gerais=monthsWithData.reduce((a,m)=>a+(expByMonth[m]||0),0);
+  const dasOficial=monthsWithData.reduce((a,m)=>a+(dasByMonth[m]||0),0); // soma correta em intervalos
   const adsTotal=total.ads;            // Ads descontado UMA vez
+  // Lucro operacional JÁ inclui o imposto sobre vendas (total.tax embutido em operational).
+  // O DAS informado é o valor real pago — NÃO é descontado de novo aqui (evita dupla contagem).
   const liquido=total.operational-adsTotal-gerais;
 
   return{
-    months:monthsWithData,total,byPlat,byProd,byMonth,expByMonth,adsByKey,
-    gerais,adsTotal,liquido,
+    months:monthsWithData,total,byPlat,byProd,byMonth,expByMonth,dasByMonth,adsByKey,
+    gerais,dasOficial,adsTotal,liquido,
     margemLiquida:RATIO(liquido,total.rev),
     tacos:RATIO(adsTotal,total.rev),
     filtered:!!(fPlat||fProd||fCat)

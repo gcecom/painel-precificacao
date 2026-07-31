@@ -297,7 +297,9 @@ function renderKpis(a){
     kpi('Gastos gerais',fmtMoney(a.gerais),sub('Uma vez por mês',a.gerais,P&&P.gerais))+
     kpi('Custo dos produtos vendidos',fmtMoney(t.cost),sub('CMV do período',t.cost,P&&P.total.cost))+
     // Imposto/DAS já somado por venda e já embutido no lucro operacional — aqui é só exibição.
-    kpi('DAS pago no mês',fmtMoney(t.tax),sub('Imposto sobre vendas (já no lucro)',t.tax,P&&P.total.tax))+
+    // Valor OFICIAL informado em Vendas (1x por mês). O imposto sobre vendas já está
+    // no lucro operacional, então o DAS informado NÃO é descontado de novo.
+    kpi('DAS pago no mês',fmtMoney(a.dasOficial),sub('Informado em Vendas · não descontado 2x (imposto já no operacional)',a.dasOficial,P&&P.dasOficial))+
     kpi('Valor atual do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra a aba Estoque')+
     kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade':'Abra a aba Estoque')+
     kpi('Produtos com estoque baixo',st?fmtInt(st.low):'—',st?(st.out?fmtInt(st.out)+' sem estoque':'Nenhum sem estoque'):'Abra a aba Estoque');
@@ -330,7 +332,7 @@ function renderTables(a){
   el('dashTableMonth').innerHTML=th(['Mês','Faturamento','Lucro','Margem','Ads','DAS','Unidades'])+
     '<tbody>'+(a.months.length?a.months.map(m=>{
       const b=a.byMonth[m],lucro=b.operational-b.ads-(a.expByMonth[m]||0);
-      return`<tr><td class="mo-name">${esc(monthLabel(m))}</td><td>${money(b.rev)}</td><td class="${lucro>=0?'pos':'neg'}">${money(lucro)}</td><td>${pc(RATIO(lucro,b.rev))}</td><td>${money(b.ads)}</td><td>${money(b.tax)}</td><td>${fmtInt(b.units)}</td></tr>`;
+      return`<tr><td class="mo-name">${esc(monthLabel(m))}</td><td>${money(b.rev)}</td><td class="${lucro>=0?'pos':'neg'}">${money(lucro)}</td><td>${pc(RATIO(lucro,b.rev))}</td><td>${money(b.ads)}</td><td>${money((a.dasByMonth&&a.dasByMonth[m])||0)}</td><td>${fmtInt(b.units)}</td></tr>`;
     }).join(''):'<tr><td style="padding:14px">Sem dados.</td></tr>')+'</tbody>';
 }
 
@@ -406,11 +408,14 @@ async function renderDashboard(force){
 // ---------- CSV (reaproveita download() do app.js) ----------
 function exportCsv(){
   if(!agg){alert('Nada para exportar ainda.');return}
-  const rows=[['Bloco','Chave','Faturamento','Unidades','Custo','Ads','DAS','Lucro','Margem %']];
+  // "Imposto (venda)" = imposto embutido no lucro operacional (estimado por venda).
+  // "DAS pago" (linha de total) = valor oficial informado em Vendas, 1x por mês.
+  const rows=[['Bloco','Chave','Faturamento','Unidades','Custo','Ads','Imposto (venda)','Lucro','Margem %']];
   Object.entries(agg.byPlat).forEach(([k,v])=>{const l=v.operational-v.ads;rows.push(['Marketplace',platformName(k),v.rev,v.units,v.cost,v.ads,v.tax,l,Number.isFinite(RATIO(l,v.rev))?RATIO(l,v.rev)*100:''])});
   Object.entries(agg.byProd).forEach(([,v])=>{const l=v.operational-v.ads;rows.push(['Produto',v.name,v.rev,v.units,v.cost,v.ads,v.tax,l,Number.isFinite(RATIO(l,v.rev))?RATIO(l,v.rev)*100:''])});
   agg.months.forEach(m=>{const b=agg.byMonth[m],l=b.operational-b.ads-(agg.expByMonth[m]||0);rows.push(['Mês',m,b.rev,b.units,b.cost,b.ads,b.tax,l,Number.isFinite(RATIO(l,b.rev))?RATIO(l,b.rev)*100:''])});
   rows.push(['Total','Consolidado',agg.total.rev,agg.total.units,agg.total.cost,agg.adsTotal,agg.total.tax,agg.liquido,Number.isFinite(agg.margemLiquida)?agg.margemLiquida*100:'']);
+  rows.push(['Total','DAS pago no mês (informado)','','','','','',agg.dasOficial,'']);
   rows.push(['Total','Gastos gerais (1x por mês)','','','','','',agg.gerais,'']);
   const csv=rows.map(r=>r.map(v=>`"${String(typeof v==='number'?(Number.isFinite(v)?v:''):v).replaceAll('"','""')}"`).join(';')).join('\n');
   const name=`dashboard-${el('dashFrom').value}_a_${el('dashTo').value}.csv`;

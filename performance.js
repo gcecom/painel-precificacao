@@ -633,9 +633,9 @@ const AdsSummary = (function(){
 function calcAcos(spend,revAds){return revAds>0?spend/revAds:NaN}
 function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
 
-let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false,monthlySavedAt='';
+let monthlyCache={},monthlyExpenses=0,monthlyDas=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false,monthlySavedAt='';
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;try{if(typeof window.resetStock==='function')window.resetStock()}catch(e){}AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyDas=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;try{if(typeof window.resetStock==='function')window.resetStock()}catch(e){}AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
@@ -750,6 +750,7 @@ async function ensureMonthlyLoaded(){
   monthlyCache={};
   (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:r.units,price:r.price,ads:r.ads_unit}});
   monthlyExpenses=exp&&exp.amount!=null?+exp.amount:0;
+  monthlyDas=exp&&exp.das!=null?+exp.das:0; // DAS pago no mês (oficial, 1x por mês)
   monthlyMonths=months||[];
   monthlyLoadedFor=key;
   monthlyDirty=false; // acabou de carregar do banco: nada pendente
@@ -757,9 +758,9 @@ async function ensureMonthlyLoaded(){
   // rascunho local mais novo que o banco: oferece recuperar o que não foi salvo
   const d=loadDraft();
   if(d&&d.cache){
-    const diff=JSON.stringify(d.cache)!==JSON.stringify(monthlyCache)||(+d.exp||0)!==(+monthlyExpenses||0);
+    const diff=JSON.stringify(d.cache)!==JSON.stringify(monthlyCache)||(+d.exp||0)!==(+monthlyExpenses||0)||(+d.das||0)!==(+monthlyDas||0);
     if(diff&&confirm('Há alterações não salvas deste mês guardadas neste navegador.\n\nRecuperar os valores não salvos?')){
-      monthlyCache=d.cache;monthlyExpenses=+d.exp||0;monthlyDirty=true;
+      monthlyCache=d.cache;monthlyExpenses=+d.exp||0;monthlyDas=+d.das||0;monthlyDirty=true;
     }else if(!diff){clearDraft()}
     else{clearDraft()}
   }
@@ -920,7 +921,7 @@ function nowHM(){const d=new Date();return String(d.getHours()).padStart(2,'0')+
 // NÃO substitui o Supabase — é só um cache do que está na tela.
 function draftKey(){return'painel_draft_'+(curUserId()||'anon')+'_'+curPlatform()+'_'+curMonth()}
 function saveDraft(){
-  try{localStorage.setItem(draftKey(),JSON.stringify({cache:monthlyCache,exp:monthlyExpenses,at:Date.now()}))}catch(e){}
+  try{localStorage.setItem(draftKey(),JSON.stringify({cache:monthlyCache,exp:monthlyExpenses,das:monthlyDas,at:Date.now()}))}catch(e){}
 }
 function loadDraft(){
   try{
@@ -954,7 +955,7 @@ async function saveMonth(){
     const jobs=rows
       .filter(r=>r.units>0||(monthlyCache[r.p.id]&&(+monthlyCache[r.p.id].units>0||+monthlyCache[r.p.id].price>0)))
       .map(r=>supabaseClient.upsertMonthlySale({user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:r.units,price:r.price,ads_unit:0}));
-    jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0}));
+    jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0,das:+monthlyDas||0}));
     await Promise.all(jobs);
     monthlyDirty=false;clearDraft();
     monthlySavedAt=nowHM();setPersist('saved',monthlySavedAt);
@@ -1010,6 +1011,7 @@ async function renderMonthly(){
   setPersist(monthlyDirty?'dirty':(monthlyMonths.includes(curMonth())?'saved':'none'),monthlySavedAt||'—');
   await loadAdsSummaryForCurrent();
   if(el('monthlyExpenses').value!==String(monthlyExpenses||''))el('monthlyExpenses').value=monthlyExpenses||'';
+  if(el('monthlyDas')&&el('monthlyDas').value!==String(monthlyDas||''))el('monthlyDas').value=monthlyDas||'';
   const _sumForInput=curUserId()?AdsSummary.get(curUserId(),curPlatform(),curMonth()):null;
   const _spendVal=_sumForInput?+_sumForInput.ads_spend||0:0;
   if(el('monthlyAdsSpend').value!==String(_spendVal||''))el('monthlyAdsSpend').value=_spendVal||'';
@@ -1117,6 +1119,10 @@ el('monthlySave').onclick=()=>saveMonth();
 el('monthlyExpenses').oninput=()=>{
   monthlyExpenses=el('monthlyExpenses').value===''?0:+el('monthlyExpenses').value;
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
+  markMonthlyDirty();
+};
+if(el('monthlyDas'))el('monthlyDas').oninput=()=>{
+  monthlyDas=el('monthlyDas').value===''?0:+el('monthlyDas').value;
   markMonthlyDirty();
 };
 // Gasto real com Ads (mensal) — fonte oficial. Grava no mesmo AdsSummary usado pela aba
