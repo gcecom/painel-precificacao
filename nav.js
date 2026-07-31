@@ -9,7 +9,7 @@ const VIEWS=['pricingView','performanceView','monthlyView','dashboardView','prod
 // módulos que dependem de um canal específico (não aceitam "Todos")
 const NEEDS_CHANNEL={vendas:1,precificacao:1,anuncios:1};
 // módulos onde o seletor de canal não faz sentido (Dashboard sempre consolida tudo)
-const NO_CHANNEL={dash:1,produtos:1,estoque:1,config:1};
+const NO_CHANNEL={dash:1,produtos:1,estoque:1,financeiro:1,config:1};
 const COLLAPSE_KEY='painel_nav_collapsed';
 let current='dash',lastChannel='mercadolivre';
 
