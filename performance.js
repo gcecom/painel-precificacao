@@ -990,7 +990,11 @@ function renderMonthList(){
     ?'<span class="mo-chips-label">Meses salvos:</span>'+monthlyMonths.map(m=>`<button type="button" class="chip${m===cur?' active':''}" data-mo="${m}">${monthLabel(m)}</button>`).join('')
     :'';
   box.querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{
-    el('monthlyMonth').value=b.dataset.mo;monthlyLoadedFor=null;renderMonthly();
+    const novo=b.dataset.mo;
+    if(novo===curMonth())return;              // já está neste mês
+    if(!confirmLeaveMonth())return;           // protege edições não salvas antes de trocar
+    el('monthlyMonth').value=novo;monthlyLastMonth=novo;
+    syncMonthInputs(novo);monthlyLoadedFor=null;renderMonthly();renderAdsSummary();
   });
 }
 
