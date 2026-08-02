@@ -77,6 +77,12 @@ function consolidar(raw, products, months, opts){
   const monthsWithData=Object.keys(byMonth).sort();
   const gerais=monthsWithData.reduce((a,m)=>a+(expByMonth[m]||0),0);
   const dasOficial=monthsWithData.reduce((a,m)=>a+(dasByMonth[m]||0),0); // soma correta em intervalos
+  // DAS CALCULADO sobre as vendas = faturamento x taxa do canal, somado por venda.
+  // Vem do mesmo unitCosts (total.tax), então já está agregado sem duplicar por produto,
+  // marketplace ou mês: por marketplace = byPlat[k].tax, por mês = byMonth[m].tax.
+  // Como o imposto JÁ está dentro do lucro operacional, aqui ele é só EXIBIDO —
+  // nunca descontado de novo (evita dupla contagem).
+  const dasCalc=total.tax;
   const adsTotal=total.ads;            // Ads descontado UMA vez
   // Lucro operacional JÁ inclui o imposto sobre vendas (total.tax embutido em operational).
   // O DAS informado é o valor real pago — NÃO é descontado de novo aqui (evita dupla contagem).
@@ -84,7 +90,7 @@ function consolidar(raw, products, months, opts){
 
   return{
     months:monthsWithData,total,byPlat,byProd,byMonth,expByMonth,dasByMonth,adsByKey,
-    gerais,dasOficial,adsTotal,liquido,
+    gerais,dasOficial,dasCalc,adsTotal,liquido,
     margemLiquida:RATIO(liquido,total.rev),
     tacos:RATIO(adsTotal,total.rev),
     filtered:!!(fPlat||fProd||fCat)

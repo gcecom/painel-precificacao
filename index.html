@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=48">
+<link rel="stylesheet" href="styles.css?v=49">
 </head>
 <body>
 <div class="app-shell">
@@ -63,7 +63,7 @@
 <div class="fields">
 <div class="field full"><label>Nome do produto</label><input id="name" readonly></div><div class="field"><label>Código (SKU)</label><input id="sku" readonly></div><div class="field"><label>Categoria</label><select id="category" disabled></select></div>
 <div class="field"><label>Preço de venda (R$)</label><input id="price" type="number" min="0" step=".01"></div><div class="field"><label>Desconto / cupom (%)</label><input id="discount" type="number" min="0" max="100" step=".01"></div>
-<div class="field"><label>Custo do produto (R$)</label><input id="cost" type="number" min="0" step=".01" readonly><div class="help">Definido em <b>Produtos</b>.</div></div><div class="field"><label>Embalagem / outros (R$)</label><input id="packaging" type="number" min="0" step=".01"></div><div class="field"><label>Frete do vendedor (R$)</label><input id="freight" type="number" min="0" step=".01"></div><div class="field"><label>Reserva devoluções (%)</label><input id="returns" type="number" min="0" max="100" step=".01"></div>
+<div class="field"><label>Custo do produto (R$)</label><input id="cost" type="number" min="0" step=".01"><div class="help">Inicia com o custo de <b>Produtos</b>. Editar aqui vale só para esta simulação — não altera Produtos, Estoque, Vendas nem meses salvos.</div></div><div class="field"><label>Embalagem / outros (R$)</label><input id="packaging" type="number" min="0" step=".01"></div><div class="field"><label>Frete do vendedor (R$)</label><input id="freight" type="number" min="0" step=".01"></div><div class="field"><label>Reserva devoluções (%)</label><input id="returns" type="number" min="0" max="100" step=".01"></div>
 </div>
 <div class="section-title">Taxas da plataforma</div><div class="fields">
 <div class="field full"><label>Regra de cobrança</label><select id="feeMode"><option value="manual">Manual — valores do anúncio/contrato</option><option value="classic">Clássico — comissão-base</option><option value="premium">Premium — comissão-base + 5 p.p.</option></select></div>
@@ -82,7 +82,7 @@
 <article class="sim-card"><h3>Projeção mensal</h3><p>Separe vendas orgânicas e vendas atribuídas à publicidade.</p><div class="fields"><div class="field"><label>Vendas mensais</label><input id="monthlySales" type="number" min="0" step="1"></div><div class="field"><label>Vendas via Ads (%)</label><input id="adsShare" type="number" min="0" max="100" step="1"></div><div class="field full"><label>Custos fixos mensais (R$)</label><input id="monthlyFixed" type="number" min="0" step=".01"></div></div><div class="results" id="monthlyResults"></div></article>
 </div></section>
 <section class="panel"><div class="panel-head"><h2>Planilha de ROAS desejado e preço ideal</h2><span class="status neutral">Atualização instantânea</span></div><div class="panel-body"><div class="scenario-controls"><div class="field"><label>ROAS inicial</label><input id="roasStart" type="number" min=".1" step=".1" value="3"></div><div class="field"><label>ROAS final</label><input id="roasEnd" type="number" min=".1" step=".1" value="30"></div><div class="field"><label>Intervalo</label><input id="roasStep" type="number" min=".1" step=".1" value="2.5"></div><button class="btn brand" id="updateScenarios">Atualizar cenários</button></div><div class="chips"><button class="chip" data-roas="5">ROAS 5</button><button class="chip" data-roas="10">ROAS 10</button><button class="chip" data-roas="20">ROAS 20</button><button class="chip" data-roas="30">ROAS 30</button><button class="chip" id="exportRoas">Exportar planilha CSV</button></div><div class="table-wrap"><table><thead><tr><th>Cenário</th><th>CPA</th><th>ACOS</th><th>Lucro/venda</th><th>Margem</th><th>ROI produto</th><th>Preço ideal</th><th>Ajuste</th><th>ROAS mínimo</th><th>Diagnóstico</th></tr></thead><tbody id="scenarioBody"></tbody></table></div></div></section>
-<section class="panel catalog-panel"><div class="panel-head"><h2>Catálogo do inventário</h2><span class="status neutral" id="productCount"></span></div><div class="panel-body"><div class="catalog-tools"><div class="field"><label>Buscar produto ou SKU</label><input id="catalogSearch"></div><div class="field"><label>Filtrar categoria</label><select id="catalogCategory"></select></div></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Produto</th><th>SKU</th><th>Categoria</th><th>Custo</th><th>Preço</th><th>Lucro Ads</th><th>Margem</th><th>Ação</th></tr></thead><tbody id="catalogBody"></tbody></table></div></div></section>
+
 </div></section>
 
 <section id="performanceView" class="content hidden">
@@ -191,8 +191,7 @@
 <section id="financeiroView" class="content hidden">
 <div class="overview"><h2>Financeiro</h2><p>DRE simplificada do período — mesma consolidação do Dashboard (dados salvos em Vendas).</p></div>
 <div class="dash-filters">
-  <div class="field"><label>De (mês)</label><input id="finFrom" type="month"></div>
-  <div class="field"><label>Até (mês)</label><input id="finTo" type="month"></div>
+  <div class="field"><label>Período</label><div id="finPeriod" class="dp-host"></div><input id="finFrom" type="month" hidden><input id="finTo" type="month" hidden></div>
   <div class="dash-filter-actions"><button class="btn" id="finReload">Atualizar</button></div>
 </div>
 <div class="help" id="finStatus">&nbsp;</div>
@@ -282,16 +281,16 @@
   </div>
 </div>
 
-<script src="supabase.js?v=48"></script>
-<script src="app.js?v=48"></script>
+<script src="supabase.js?v=49"></script>
+<script src="app.js?v=49"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=48"></script>
-<script src="nav.js?v=48"></script>
-<script src="produtos.js?v=48"></script>
-<script src="estoque.js?v=48"></script>
-<script src="consolida.js?v=48"></script>
-<script src="dashboard.js?v=48"></script>
-<script src="financeiro.js?v=48"></script>
-<script src="daterange.js?v=48"></script>
+<script src="performance.js?v=49"></script>
+<script src="nav.js?v=49"></script>
+<script src="produtos.js?v=49"></script>
+<script src="estoque.js?v=49"></script>
+<script src="consolida.js?v=49"></script>
+<script src="dashboard.js?v=49"></script>
+<script src="financeiro.js?v=49"></script>
+<script src="daterange.js?v=49"></script>
 </body>
 </html>

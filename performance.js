@@ -792,11 +792,11 @@ async function renderCompare(){
   }
   // recalcula o mês anterior com o MESMO motor (unitCosts), sem duplicar fórmula
   const byId={};(prevRows||[]).forEach(r=>{byId[r.product_id]={units:+r.units||0,price:+r.price||0}});
-  let pRev=0,pUnits=0,pOper=0;
+  let pRev=0,pUnits=0,pOper=0,pTax=0;
   savedProducts().forEach(p=>{
     const s2=byId[p.id];if(!s2)return;
     const u=monthlyUnit(p,s2.price);
-    pRev+=s2.units*s2.price;pUnits+=s2.units;pOper+=u.profit*s2.units;
+    pRev+=s2.units*s2.price;pUnits+=s2.units;pOper+=u.profit*s2.units;pTax+=u.tax*s2.units;
   });
   const pAds=prevAds?+prevAds.ads_spend||0:0;
   const pLucro=pOper-pAds;                    // sem gastos gerais (são do negócio, não do canal)
@@ -821,6 +821,7 @@ async function renderCompare(){
     +line('Lucro (após Ads)',lucro,pLucro)
     +`<tr><td class="mo-name">Margem</td><td>${fmtPct(pMargin)}</td><td>${fmtPct(margin)}</td><td class="${Number.isFinite(margin)&&Number.isFinite(pMargin)?(margin>=pMargin?'pos':'neg'):''}">${Number.isFinite(margin)&&Number.isFinite(pMargin)?(margin>=pMargin?'▲ ':'▼ ')+pp(Math.abs(margin-pMargin)):'—'}</td></tr>`
     +line('Unidades',t.units,pUnits,fmtInt)
+    +line('DAS sobre as vendas',t.tax,pTax,fmtMoney,false)
     +line('Ads',ads,pAds,fmtMoney,false)
     +`<tr><td class="mo-name">TACOS</td><td>${fmtPct(pTacos)}</td><td>${fmtPct(tacos)}</td><td class="${Number.isFinite(tacos)&&Number.isFinite(pTacos)?(tacos<=pTacos?'pos':'neg'):''}">${Number.isFinite(tacos)&&Number.isFinite(pTacos)?(tacos<=pTacos?'▼ ':'▲ ')+pp(Math.abs(tacos-pTacos)):'—'}</td></tr>`
     +'</tbody>';
@@ -834,7 +835,9 @@ function unitCosts(p,price,plat){
   // O "Preço médio" lançado no fechamento JÁ é o valor realizado no mês. Aplicar de novo
   // o desconto/cupom do cadastro faria as taxas incidirem sobre um preço menor que a
   // receita exibida, e a linha não fecharia (receita − custos ≠ lucro mostrado).
-  const ch=Object.assign({},base,{discount:0});
+  // cost:0 → o custo editado na Precificação (simulação por canal) NUNCA entra no
+  // fechamento mensal nem no Dashboard: aqui vale sempre o custo central de Produtos.
+  const ch=Object.assign({},base,{discount:0,cost:0});
   if(typeof calcAt==='function'){
     const r=calcAt(p,ch,price);
     return{comm:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:p.cost||0,profit:r.beforeAds,gross:r.gross};
@@ -1097,6 +1100,9 @@ function renderMonthlyKpis(rows){
     kpi('Gasto total com Ads do mês',fmtMoney(spend),t.rev>0?fmtPct(spend/t.rev)+' do faturamento':'Valor real informado')+
     kpi('Lucro operacional do marketplace',fmtMoney(operational),'Antes dos Ads mensais e dos gastos gerais')+
     kpi('Gastos gerais do mês',fmtMoney(gerais),'Valor único do negócio')+
+    // DAS calculado deste marketplace/mês = soma do imposto das vendas preenchidas.
+    // Já está dentro do lucro operacional — exibido, nunca descontado de novo.
+    kpi('DAS sobre as vendas',fmtMoney(t.tax),'Faturamento × taxa · '+platformName()+' · '+monthLabel(curMonth()))+
     kpi('Lucro líquido final',fmtMoney(liquido),liquido>=0?'Operacional − Ads mensais − gastos gerais':'Prejuízo no mês')+
     kpi('Margem líquida',fmtPct(margin),'Lucro líquido ÷ faturamento')+
     kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`)+
