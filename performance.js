@@ -1053,6 +1053,7 @@ async function renderMonthly(){
   });
   renderMonthlyKpis(rows);
   renderCompare();
+  try{if(window.PainelPeriod)window.PainelPeriod.refresh('monthlyMonth')}catch(e){} // atualiza o rótulo do seletor compacto
 }
 
 function monthlyTotals(rows){
@@ -1115,7 +1116,7 @@ window.showViewExternal=showView;
 let monthlyLastMonth=null;
 el('monthlyMonth').onchange=()=>{
   const novo=el('monthlyMonth').value;
-  if(!confirmLeaveMonth()){el('monthlyMonth').value=monthlyLastMonth||curMonth();return}
+  if(!confirmLeaveMonth()){el('monthlyMonth').value=monthlyLastMonth||curMonth();try{if(window.PainelPeriod)window.PainelPeriod.refresh('monthlyMonth')}catch(e){}return}
   monthlyLastMonth=novo;
   syncMonthInputs(novo);monthlyLoadedFor=null;renderMonthly();renderAdsSummary();
 };

@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=46">
+<link rel="stylesheet" href="styles.css?v=48">
 </head>
 <body>
 <div class="app-shell">
@@ -116,7 +116,7 @@
 <section id="monthlyView" class="content hidden">
 <div class="overview"><h2 id="monthlyTitle">Resultado mensal — Mercado Livre</h2><p>Lance as <b>unidades vendidas</b> e o <b>preço médio</b> de cada produto no mês. O painel calcula receita, comissão, taxas, imposto, lucro e margem usando os custos cadastrados. Troque o marketplace na barra superior.</p></div>
 <div class="monthly-toolbar">
-  <div class="field"><label>Mês de referência</label><input id="monthlyMonth" type="month"><div class="help" id="monthlyMonthHint">Cada mês fica salvo separadamente</div></div>
+  <div class="field"><label>Mês de referência</label><div id="monthlyMonthPicker" class="dp-host"></div><input id="monthlyMonth" type="month" hidden><div class="help" id="monthlyMonthHint">Cada mês fica salvo separadamente</div></div>
   <div class="field"><label>Gastos gerais do mês (R$)</label><input id="monthlyExpenses" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único do negócio (vale para todos os marketplaces)</div></div>
   <div class="field"><label>DAS pago no mês (R$)</label><input id="monthlyDas" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único por mês (não por marketplace). Informativo — o imposto sobre vendas já está no lucro operacional.</div></div>
   <div class="field"><label>Gasto total com Ads do mês (R$)</label><input id="monthlyAdsSpend" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor real gasto nesta plataforma no mês selecionado</div></div>
@@ -134,8 +134,7 @@
 <section id="dashboardView" class="content hidden">
 <div class="overview"><h2>Dashboard Geral do negócio</h2><p>Consolida todos os marketplaces a partir dos meses <b>salvos</b> no Resultado Mensal. Gastos gerais entram uma única vez por mês.</p></div>
 <div class="dash-filters">
-  <div class="field"><label>De (mês)</label><input id="dashFrom" type="month"></div>
-  <div class="field"><label>Até (mês)</label><input id="dashTo" type="month"></div>
+  <div class="field"><label>Período</label><div id="dashPeriod" class="dp-host"></div><input id="dashFrom" type="month" hidden><input id="dashTo" type="month" hidden></div>
   <div class="field"><label>Categoria</label><select id="dashCategory"><option value="">Todas</option></select></div>
   <div class="field"><label>Produto</label><select id="dashProduct"><option value="">Todos</option></select></div>
   <div class="dash-filter-actions"><button class="btn" id="dashReload">Atualizar</button><button class="btn" id="dashExport">Exportar CSV</button></div>
@@ -283,15 +282,16 @@
   </div>
 </div>
 
-<script src="supabase.js?v=46"></script>
-<script src="app.js?v=46"></script>
+<script src="supabase.js?v=48"></script>
+<script src="app.js?v=48"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=46"></script>
-<script src="nav.js?v=46"></script>
-<script src="produtos.js?v=46"></script>
-<script src="estoque.js?v=46"></script>
-<script src="consolida.js?v=46"></script>
-<script src="dashboard.js?v=46"></script>
-<script src="financeiro.js?v=46"></script>
+<script src="performance.js?v=48"></script>
+<script src="nav.js?v=48"></script>
+<script src="produtos.js?v=48"></script>
+<script src="estoque.js?v=48"></script>
+<script src="consolida.js?v=48"></script>
+<script src="dashboard.js?v=48"></script>
+<script src="financeiro.js?v=48"></script>
+<script src="daterange.js?v=48"></script>
 </body>
 </html>
