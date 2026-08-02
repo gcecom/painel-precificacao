@@ -7,17 +7,18 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=51">
+<link rel="stylesheet" href="styles.css?v=54">
 </head>
 <body>
 <div class="app-shell">
 <aside class="side-nav" id="sideNav">
   <div class="side-brand">
-    <img class="side-bolt" src="assets/favicon-32.png?v=1" alt="">
+    <button class="bolt-home" id="sideBolt" type="button" title="Ir para o Início" aria-label="Ir para a página Início"><img src="assets/favicon-32.png?v=1" alt=""></button>
     <b class="side-name">FULL Ecommerce</b>
     <button class="side-toggle" id="navToggle" type="button" aria-label="Recolher menu">‹</button>
   </div>
   <nav class="side-menu" id="sideMenu" aria-label="Módulos">
+    <button class="side-item" data-module="inicio" data-view="inicioView" data-title="Início"><span class="si-ico">⌂</span><span class="si-txt">Início</span></button>
     <button class="side-item" data-module="dash" data-view="dashboardView" data-title="Dashboard Geral"><span class="si-ico">▤</span><span class="si-txt">Dashboard</span></button>
     <button class="side-item" data-module="produtos" data-view="produtosView" data-title="Produtos"><span class="si-ico">◳</span><span class="si-txt">Produtos</span></button>
     <button class="side-item" data-module="estoque" data-view="estoqueView" data-title="Estoque"><span class="si-ico">▦</span><span class="si-txt">Estoque</span></button>
@@ -34,7 +35,7 @@
 <main class="app">
 <header class="topbar">
   <button class="nav-burger" id="navBurger" type="button" aria-label="Abrir menu">☰</button>
-  <img class="top-bolt" src="assets/favicon-32.png?v=1" alt="">
+  <button class="bolt-home top-bolt-btn" id="topBolt" type="button" title="Ir para o Início" aria-label="Ir para a página Início"><img src="assets/favicon-32.png?v=1" alt=""></button>
   <h1 id="pageTitle">Dashboard Geral</h1>
   <div class="top-actions">
     <label class="chan-pick" id="chanPick"><span>Canal</span>
@@ -135,6 +136,17 @@
 <section class="panel"><div class="panel-head"><h2>Mês anterior</h2><span class="status neutral" id="monthlyCompareStatus">Sem base de comparação</span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyCompare"></table></div></div></section>
 </section>
 
+<section id="inicioView" class="content hidden">
+  <div class="overview"><h2 id="inicioHello">Olá!</h2><p id="inicioSub">Resumo do mês e atalhos para os módulos.</p></div>
+  <section class="kpis" id="inicioKpis"></section>
+  <div class="ini-grid">
+    <section class="panel"><div class="panel-head"><h2>Atalhos</h2></div><div class="panel-body"><div class="ini-shortcuts" id="inicioAtalhos"></div></div></section>
+    <div class="ini-side">
+      <section class="panel"><div class="panel-head"><h2>Atenção necessária</h2><span class="status neutral" id="inicioAlertStatus">—</span></div><div class="panel-body"><div class="ini-alerts" id="inicioAlertas"></div></div></section>
+      <section class="panel"><div class="panel-head"><h2>Meses salvos</h2></div><div class="panel-body"><div class="ini-months" id="inicioMeses"></div></div></section>
+    </div>
+  </div>
+</section>
 <section id="dashboardView" class="content hidden">
 <div class="overview"><h2>Dashboard Geral do negócio</h2><p>Consolida todos os marketplaces a partir dos meses <b>salvos</b> no Resultado Mensal. Gastos gerais entram uma única vez por mês.</p></div>
 <div class="dash-filters">
@@ -288,16 +300,17 @@
   </div>
 </div>
 
-<script src="supabase.js?v=51"></script>
-<script src="app.js?v=51"></script>
+<script src="supabase.js?v=54"></script>
+<script src="app.js?v=54"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=51"></script>
-<script src="nav.js?v=51"></script>
-<script src="produtos.js?v=51"></script>
-<script src="estoque.js?v=51"></script>
-<script src="consolida.js?v=51"></script>
-<script src="dashboard.js?v=51"></script>
-<script src="financeiro.js?v=51"></script>
-<script src="daterange.js?v=51"></script>
+<script src="performance.js?v=54"></script>
+<script src="nav.js?v=54"></script>
+<script src="produtos.js?v=54"></script>
+<script src="estoque.js?v=54"></script>
+<script src="consolida.js?v=54"></script>
+<script src="dashboard.js?v=54"></script>
+<script src="financeiro.js?v=54"></script>
+<script src="daterange.js?v=54"></script>
+<script src="inicio.js?v=54"></script>
 </body>
 </html>

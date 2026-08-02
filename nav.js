@@ -5,11 +5,11 @@
 // o render continua sendo disparado por showView() (performance.js).
 (function(){
 const el=x=>document.getElementById(x);
-const VIEWS=['pricingView','performanceView','monthlyView','dashboardView','produtosView','estoqueView','financeiroView','configView'];
+const VIEWS=['inicioView','pricingView','performanceView','monthlyView','dashboardView','produtosView','estoqueView','financeiroView','configView'];
 // módulos que dependem de um canal específico (não aceitam "Todos")
 const NEEDS_CHANNEL={vendas:1,precificacao:1,anuncios:1};
 // módulos onde o seletor de canal não faz sentido (Dashboard sempre consolida tudo)
-const NO_CHANNEL={dash:1,produtos:1,estoque:1,financeiro:1,config:1};
+const NO_CHANNEL={inicio:1,dash:1,produtos:1,estoque:1,financeiro:1,config:1};
 const COLLAPSE_KEY='painel_nav_collapsed';
 let current='dash',lastChannel='mercadolivre';
 
@@ -54,6 +54,7 @@ function go(mod,opts){
   if(view==='produtosView'&&typeof window.renderProdutos==='function')window.renderProdutos();
   if(view==='estoqueView'&&typeof window.renderEstoque==='function')window.renderEstoque();
   if(view==='financeiroView'&&typeof window.renderFinanceiro==='function')window.renderFinanceiro();
+  if(view==='inicioView'&&typeof window.renderInicio==='function')window.renderInicio();
   if(view==='configView'){const u=el('cfgUser');if(u){let e='';try{e=(currentUser&&currentUser.email)||''}catch(x){}u.textContent=e?('Conectado como '+e):'Faça login para ver os dados da conta.'}}
   if(!opts||!opts.silent)window.scrollTo({top:0,behavior:'instant'});
 }
@@ -72,6 +73,8 @@ items().forEach(b=>b.onclick=()=>go(b.dataset.module));
 if(el('navToggle'))el('navToggle').onclick=()=>setCollapsed(!document.body.classList.contains('nav-collapsed'));
 if(el('navBurger'))el('navBurger').onclick=()=>document.body.classList.contains('nav-open')?closeDrawer():openDrawer();
 if(el('navScrim'))el('navScrim').onclick=closeDrawer;
+// Raio do cabeçalho e da barra lateral levam ao Início (navegação client-side)
+['sideBolt','topBolt'].forEach(idb=>{const b=el(idb);if(b)b.onclick=()=>go('inicio')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
 
 if(el('platformSelect'))el('platformSelect').onchange=()=>{
@@ -97,7 +100,7 @@ window.navCurrentModule=()=>current;
 // estado inicial
 try{if(localStorage.getItem(COLLAPSE_KEY)==='1')setCollapsed(true)}catch(e){}
 if(el('platformSelect'))el('platformSelect').value='mercadolivre';
-let inicial='dash';
+let inicial='inicio';
 try{const m=localStorage.getItem('painel_modulo');if(m&&itemOf(m))inicial=m}catch(e){}
 go(inicial,{silent:true});
 
