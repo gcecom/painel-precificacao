@@ -175,3 +175,27 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
 .dp-apply{min-height:38px;border:0;border-radius:8px;background:var(--heading);color:var(--bg);font-weight:800;cursor:pointer;padding:8px 10px}
 @media(max-width:520px){.dp,.dp-btn{width:100%}.dp-pop{left:0;right:0;min-width:0}}
 @media print{.dp-pop{display:none!important}}
+
+/* ---------- Links dos anúncios por marketplace (cadastro de Produtos) ---------- */
+.ad-links{display:grid;gap:8px}
+.ad-link-row{display:grid;grid-template-columns:120px minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:center}
+.ad-link-name{font-weight:800;color:var(--heading);font-size:12px}
+.ad-link-row input{min-width:0;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--control);color:var(--text)}
+.ad-link-open{display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap}
+.ad-link-open[aria-disabled="true"]{opacity:.45;pointer-events:none}
+@media(max-width:700px){.ad-link-row{grid-template-columns:1fr;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}}
+
+/* ---------- Precificação: acordeões no celular, tudo aberto no desktop ---------- */
+.acc{border-top:1px solid var(--line);margin-top:10px}
+.acc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:11px 2px;font-weight:900;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--heading)}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary::after{content:'▾';color:var(--muted);transition:transform .2s}
+.acc[open]>summary::after{transform:rotate(180deg)}
+/* Desktop: sem cabeçalho clicável — o conteúdo fica sempre visível (JS mantém open) */
+@media(min-width:901px){
+  .acc>summary{display:none}.acc{border-top:0;margin-top:0}.acc>summary+*{margin-top:14px}
+  /* Reforço: mesmo que o <details> esteja fechado, no desktop o conteúdo aparece.
+     O JS (nav.js) também força open — os dois juntos evitam seção sumida. */
+  .acc>*:not(summary){content-visibility:visible!important}
+}
+@media print{.acc>summary{display:none}}

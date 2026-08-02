@@ -100,4 +100,30 @@ if(el('platformSelect'))el('platformSelect').value='mercadolivre';
 let inicial='dash';
 try{const m=localStorage.getItem('painel_modulo');if(m&&itemOf(m))inicial=m}catch(e){}
 go(inicial,{silent:true});
+
+// ---------- acordeões da Precificação ----------
+// No celular cada seção vira um acordeão (só a 1ª aberta). No desktop o cabeçalho some
+// via CSS, então TODOS precisam ficar `open` — senão o conteúdo sumiria junto.
+const accQuery=window.matchMedia('(min-width:901px)');
+let accApplying=false; // ignora os toggles que o próprio código dispara
+function syncAcc(){
+  const desk=accQuery.matches;
+  accApplying=true;
+  document.querySelectorAll('#pricingView .acc').forEach((d,i)=>{
+    // Desktop: SEMPRE aberto. O cabeçalho some no CSS, então um <details> fechado
+    // esconderia a seção inteira em navegadores que respeitam isso (Safari/Firefox).
+    if(desk)d.open=true;
+    else if(!d.dataset.userSet)d.open=(i===0); // celular: só a 1ª aberta
+  });
+  accApplying=false;
+}
+document.querySelectorAll('#pricingView .acc').forEach(d=>{
+  d.addEventListener('toggle',()=>{if(!accApplying&&!accQuery.matches)d.dataset.userSet='1'});
+});
+if(accQuery.addEventListener)accQuery.addEventListener('change',syncAcc);
+else if(accQuery.addListener)accQuery.addListener(syncAcc);
+// rede de segurança: nem todo ambiente dispara o change do matchMedia
+let accT=null;
+window.addEventListener('resize',()=>{clearTimeout(accT);accT=setTimeout(syncAcc,120)});
+syncAcc();
 })();

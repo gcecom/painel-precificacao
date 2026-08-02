@@ -34,6 +34,7 @@ function writeForm(){
   set('pcImage',p?(p.image_url||''):'');
   el('pcActive').value=p?(isActive(p)?'1':'0'):'1';
   renderThumb(p?p.image_url:'');
+  renderAdLinks(p);
   dirty=false;
   setStatus('neutral',p?'Editando produto':'Preencha e salve');
 }
@@ -41,6 +42,48 @@ function writeForm(){
 function renderThumb(url){
   const t=el('pcThumb');if(!t)return;
   t.innerHTML=url?`<img src="${esc(url)}" alt="">`:'<span class="help">sem imagem</span>';
+}
+
+// ---------- links dos anúncios por marketplace ----------
+// Reaproveita o JSONB `channels` do próprio produto (já é a estrutura por marketplace):
+// channels[mkt].ad_url + channels[mkt].ad_id. O produto segue global — nenhum canal
+// "dono" — e não precisa de tabela nova nem de migration manual no Supabase.
+function adLinkOf(p,mkt){
+  const c=(p&&p.channels&&p.channels[mkt])||{};
+  return{url:c.ad_url||'',adId:c.ad_id||''};
+}
+function renderAdLinks(p){
+  const box=el('pcAdLinks');if(!box)return;
+  box.innerHTML=plats().map(k=>{
+    const{url,adId}=adLinkOf(p,k);
+    const nome=(typeof PLATFORMS!=='undefined'&&PLATFORMS[k])?PLATFORMS[k].name:k;
+    return`<div class="ad-link-row">
+      <span class="ad-link-name">${esc(nome)}</span>
+      <input data-adurl="${k}" placeholder="https://… (link do anúncio)" value="${esc(url)}">
+      <input data-adid="${k}" placeholder="ID do anúncio (opcional)" value="${esc(adId)}">
+      <a class="btn small ad-link-open" data-adopen="${k}" href="${url?esc(url):'#'}" target="_blank" rel="noopener noreferrer"${url?'':' aria-disabled="true"'}>Abrir</a>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('input').forEach(i=>i.addEventListener('input',()=>{
+    dirty=true;
+    if(i.dataset.adurl){
+      const a=box.querySelector(`[data-adopen="${i.dataset.adurl}"]`);
+      if(a){const v=(i.value||'').trim();a.setAttribute('href',v||'#');if(v)a.removeAttribute('aria-disabled');else a.setAttribute('aria-disabled','true')}
+    }
+  }));
+}
+// Grava os links no produto sem tocar no resto da precificação do canal
+function applyAdLinks(p){
+  const box=el('pcAdLinks');if(!box||!p)return;
+  p.channels=p.channels||{};
+  plats().forEach(k=>{
+    const u=box.querySelector(`[data-adurl="${k}"]`),i=box.querySelector(`[data-adid="${k}"]`);
+    if(!u&&!i)return;
+    p.channels[k]=p.channels[k]||(typeof channelDefaults==='function'?channelDefaults(k):{});
+    const url=u?(u.value||'').trim():'',adId=i?(i.value||'').trim():'';
+    if(url)p.channels[k].ad_url=url;else delete p.channels[k].ad_url;
+    if(adId)p.channels[k].ad_id=adId;else delete p.channels[k].ad_id;
+  });
 }
 
 function readForm(){
@@ -70,11 +113,13 @@ async function save(){
       p={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),user_id:uid,
          channels:Object.fromEntries(plats().map(k=>[k,channelDefaults(k)]))};
       Object.assign(p,{name:f.name,sku:f.sku,category:f.category,cost:f.cost,default_price:f.default_price,image_url:f.image_url,active:f.active});
+      applyAdLinks(p);
       await supabaseClient.createProduct(p);
       products.push(p);editingId=p.id;
     }else{
       Object.assign(p,{name:f.name,sku:f.sku,category:f.category,cost:f.cost,default_price:f.default_price,image_url:f.image_url,active:f.active});
       p.channels=p.channels||{};
+      applyAdLinks(p);
       await supabaseClient.updateProduct(p.id,p);
     }
     dirty=false;setStatus('good','Produto salvo');
