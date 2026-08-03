@@ -91,8 +91,8 @@ function readForm(){
     name:(el('pcName').value||'').trim()||'Produto sem nome',
     sku:(el('pcSku').value||'').trim(),
     category:(el('pcCategory').value||'').trim()||'Outros',
-    cost:Math.max(0,+el('pcCost').value||0),
-    default_price:Math.max(0,+el('pcPrice').value||0),
+    cost:money2(Math.max(0,+el('pcCost').value||0)),
+    default_price:money2(Math.max(0,+el('pcPrice').value||0)),
     image_url:(el('pcImage').value||'').trim()||null,
     active:el('pcActive').value==='1'
   };

@@ -7,6 +7,11 @@ const THEME_STORAGE='painel_tema_2026';let platform='mercadolivre',selectedId=''
 const money=v=>Number.isFinite(v)?new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v):'—';
 const pct=v=>Number.isFinite(v)?new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2}).format(v):'—';
 const n=v=>Math.max(0,Number(v)||0);
+// Dinheiro sempre com 2 casas. Usado só na BORDA (ler input, montar valor a salvar),
+// nunca no meio de uma fórmula — as etapas intermediárias seguem em precisão cheia.
+// EPSILON evita o classico 1.005*100 = 100.49999 virar 1,00.
+const money2=v=>{const x=Number(v);return Number.isFinite(x)?Math.round((x+Number.EPSILON)*100)/100:0};
+const units0=v=>{const x=Number(v);return Number.isFinite(x)?Math.max(0,Math.round(x)):0};
 const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
 
 function categoryOf(name){let s=name.toLowerCase();if(s.includes('eletr')||s.includes('cerca')||s.includes('voltimetro'))return'Eletrificadores e cerca';if(s.includes('esterilizador'))return'Esterilizadores de ar';if(s.includes('ionizador')||s.includes('ozônio'))return'Tratamento de piscina e ar';if(s.includes('purificador'))return'Purificadores de ar';if(s.includes('fio'))return'Fios para cerca';if(s.includes('suporte'))return'Suportes';if(s.includes('repelente'))return'Repelentes';return'Componentes e outros'}
@@ -34,7 +39,8 @@ function idealPrice(p,c,roas){if(effCost(p,c)<=0)return NaN;let lo=.01,hi=Math.m
 
 // Precificação = simulação por canal. Nome/SKU/categoria/custo são do cadastro central
 // (Produtos) e NÃO são reescritos aqui — só a precificação do canal (c[...]) é editada.
-function readForm(){let p=current(),c=currentChannel(p);if(!p)return{p:null,c:null};for(let k of ['price','discount','cost','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;
+function readForm(){let p=current(),c=currentChannel(p);if(!p)return{p:null,c:null};const MONEY_KEYS={price:1,cost:1,packaging:1,freight:1,fixedFee:1,unitFee:1,investment:1,monthlyFixed:1};
+for(let k of ['price','discount','cost','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=MONEY_KEYS[k]?money2(n($(k).value)):n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;
 // Só guarda custo próprio quando ele DIVERGE do central: igual ao de Produtos volta a 0
 // (= "herda do cadastro"), senão o valor central ficaria congelado no canal e mudanças
 // futuras em Produtos não apareceriam mais aqui.

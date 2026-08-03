@@ -179,7 +179,7 @@ function editar(id){
 function lerForm(){
   const desc=(el('dpDesc').value||'').trim();
   const cat=(el('dpCat').value||'').trim();
-  const amount=Number(el('dpAmount').value);
+  const amount=money2(el('dpAmount').value); // dinheiro sempre com 2 casas
   const due=el('dpDue').value||'';
   const status=el('dpStatus').value==='paid'?'paid':'pending';
   const paid=el('dpPaid').value||'';

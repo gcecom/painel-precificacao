@@ -719,7 +719,7 @@ function wireAdsSummaryInputs(){
     const e=el(id);if(!e)return;
     e.addEventListener('input',()=>{
       const uid=curUserId();if(!uid)return;
-      const v=e.value===''?0:Number(e.value);
+      const v=e.value===''?0:money2(e.value);
       if(e.value===''){AdsSummary.clearManualFlag(uid,curPlatform(),curMonth(),field)}
       AdsSummary.set(uid,curPlatform(),curMonth(),field,v,{manual:true});
     });
@@ -751,7 +751,10 @@ async function ensureMonthlyLoaded(){
     AdsSummary.load(uid,plat,mo) // popula o cache do resumo Ads (não bloqueia render se falhar dentro)
   ]);
   monthlyCache={};
-  (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:r.units,price:r.price,ads:r.ads_unit}});
+  // Normaliza ao CARREGAR (só em memória): o input, o cálculo e o total passam a usar
+  // o mesmo valor de 2 casas. O banco não é tocado — a linha só é reescrita quando o
+  // usuário salvar o mês de novo (sem migração em massa).
+  (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:units0(r.units),price:money2(r.price),ads:r.ads_unit}});
   monthlyExpenses=exp&&exp.amount!=null?+exp.amount:0;
   monthlyDas=exp&&exp.das!=null?+exp.das:0; // DAS pago no mês (oficial, 1x por mês)
   monthlyMonths=months||[];
@@ -874,7 +877,7 @@ function monthlyRowsData(){
     // Preço médio: 1) valor salvo do mês/marketplace  2) preço do canal na Precificação
     // 3) preço padrão do cadastro central  4) zero. Um 0 salvo conta como "não informado"
     // — senão salvar só as unidades gravaria price=0 e o mês perderia o preço-base.
-    const price=+s.price>0?+s.price:(+ch.price>0?+ch.price:(+p.default_price||0));
+    const price=money2(+s.price>0?+s.price:(+ch.price>0?+ch.price:(+p.default_price||0)));
     const u=monthlyUnit(p,price);
     const rev=units*price;
     return{p,units,price,rev,u,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units};
@@ -964,7 +967,7 @@ async function saveMonth(){
     // 1 upsert por produto com lançamento + os gastos gerais (únicos por usuário/mês)
     const jobs=rows
       .filter(r=>r.units>0||(monthlyCache[r.p.id]&&(+monthlyCache[r.p.id].units>0||+monthlyCache[r.p.id].price>0)))
-      .map(r=>supabaseClient.upsertMonthlySale({user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:r.units,price:r.price,ads_unit:0}));
+      .map(r=>supabaseClient.upsertMonthlySale({user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:units0(r.units),price:money2(r.price),ads_unit:0}));
     jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0,das:+monthlyDas||0}));
     await Promise.all(jobs);
     monthlyDirty=false;clearDraft();
@@ -1084,7 +1087,7 @@ function paintMonthlyTable(){
       <td class="mo-name">${esc(r.p.name)}</td>
       <td>${fmtMoney(r.p.cost||0)}</td>
       <td><input type="number" min="0" step="1" data-mo="units" data-id="${r.p.id}" value="${r.units||''}" placeholder="0"></td>
-      <td><input type="number" min="0" step=".01" data-mo="price" data-id="${r.p.id}" value="${r.price||''}" placeholder="0,00"></td>
+      <td><input type="number" min="0" step="0.01" data-mo="price" data-id="${r.p.id}" value="${r.price?money2(r.price):''}" placeholder="0,00"></td>
       <td data-c="adsUnit">${fmtMoney(r.adsUnit)}</td>
       <td data-c="rev">${fmtMoney(r.rev)}</td>
       <td data-c="comm">${fmtMoney(r.comm)}</td>
@@ -1107,9 +1110,16 @@ function paintMonthlyTable(){
     inp.addEventListener('input',()=>{
       const id=inp.dataset.id;
       monthlyCache[id]=monthlyCache[id]||{};
-      monthlyCache[id][inp.dataset.mo]=inp.value===''?0:+inp.value;
+      // dinheiro sempre 2 casas; unidades sempre inteiras
+      monthlyCache[id][inp.dataset.mo]=inp.value===''?0:(inp.dataset.mo==='price'?money2(inp.value):units0(inp.value));
       updateMonthly();
       markMonthlyDirty();
+    });
+    // ao sair do campo, o texto passa a refletir o valor normalizado (2 casas / inteiro)
+    inp.addEventListener('blur',()=>{
+      if(inp.value==='')return;
+      const v=inp.dataset.mo==='price'?money2(inp.value):units0(inp.value);
+      if(String(v)!==inp.value)inp.value=v;
     });
   });
   renderMonthlyKpis(rows);
@@ -1184,19 +1194,19 @@ el('monthlyMonth').onchange=()=>{
 };
 el('monthlySave').onclick=()=>saveMonth();
 el('monthlyExpenses').oninput=()=>{
-  monthlyExpenses=el('monthlyExpenses').value===''?0:+el('monthlyExpenses').value;
+  monthlyExpenses=el('monthlyExpenses').value===''?0:money2(el('monthlyExpenses').value);
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
   markMonthlyDirty();
 };
 if(el('monthlyDas'))el('monthlyDas').oninput=()=>{
-  monthlyDas=el('monthlyDas').value===''?0:+el('monthlyDas').value;
+  monthlyDas=el('monthlyDas').value===''?0:money2(el('monthlyDas').value);
   markMonthlyDirty();
 };
 // Gasto real com Ads (mensal) — fonte oficial. Grava no mesmo AdsSummary usado pela aba
 // "Avaliar Anúncio e Produto" para manter consistência entre as duas telas.
 el('monthlyAdsSpend').oninput=()=>{
   const uid=curUserId();if(!uid)return;
-  const v=el('monthlyAdsSpend').value===''?0:+el('monthlyAdsSpend').value;
+  const v=el('monthlyAdsSpend').value===''?0:money2(el('monthlyAdsSpend').value);
   AdsSummary.set(uid,curPlatform(),curMonth(),'ads_spend',v,{manual:true});
   updateMonthly(); // rateia o novo valor entre os produtos e refaz totais/KPIs
 };
@@ -1212,6 +1222,11 @@ el('monthlyClear').onclick=async()=>{
   }
   catch(e){alert('Erro ao zerar: '+e.message)}
 };
+// Campos monetários da aba: normaliza o texto exibido ao sair do campo
+['monthlyExpenses','monthlyDas','monthlyAdsSpend','adsSpendInput','revenueTotalInput','revenueAdsInput']
+  .forEach(id=>{const e=el(id);if(e)e.addEventListener('blur',()=>{
+    if(e.value==='')return;const v=money2(e.value);if(String(v)!==e.value)e.value=v;
+  })});
 el('monthlyPrint').onclick=()=>window.print();
 // Trocar de plataforma recalcula a venda, o fechamento mensal e o resumo Ads (todos por marketplace)
 document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventListener('click',()=>{
@@ -1234,7 +1249,7 @@ window.PainelVendas={
   apply(rows){
     (rows||[]).forEach(r=>{
       const cur=monthlyCache[r.product_id]||{};
-      monthlyCache[r.product_id]=Object.assign({},cur,{units:r.units,price:r.price});
+      monthlyCache[r.product_id]=Object.assign({},cur,{units:units0(r.units),price:money2(r.price)});
     });
     markMonthlyDirty();   // mostra "Alterações não salvas" e guarda rascunho local
     renderMonthly();      // recalcula receita, Ads rateado, imposto, lucro e margem
