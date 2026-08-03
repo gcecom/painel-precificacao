@@ -229,6 +229,39 @@ const supabaseClient = {
     });
   },
 
+  // ---------- Despesas detalhadas (expense_entries) ----------
+  // Tabela NOVA e independente de monthly_expenses (ver sql/despesas_detalhadas.sql).
+  // Toda operação passa pelo request(), que manda o JWT do usuário — o RLS filtra.
+  // A listagem vem em UMA consulta por período; nunca uma requisição por item.
+  async getExpenses(userId, from, to) {
+    if (!userId) throw new Error('Sessão não identificada. Faça login novamente.');
+    let q = `/expense_entries?user_id=eq.${userId}`;
+    if (from) q += `&due_date=gte.${from}`;
+    if (to) q += `&due_date=lte.${to}`;
+    return this.request(`${q}&order=due_date.desc`);
+  },
+
+  async createExpense(row) {
+    if (!row || !row.user_id) throw new Error('Sessão não identificada. Faça login novamente.');
+    const rows = await this.request('/expense_entries', 'POST', row, { 'Prefer': 'return=representation' });
+    if (!rows || !rows.length) throw new Error('A despesa não foi gravada no banco.');
+    return rows[0];
+  },
+
+  // Confere se alguma linha mudou: um PATCH que não acerta nada volta 204 e o painel
+  // diria "salvo" sem ter salvado (mesmo cuidado de updateProduct).
+  async updateExpense(id, userId, updates) {
+    if (!userId) throw new Error('Sessão não identificada. Faça login novamente.');
+    const rows = await this.request(`/expense_entries?id=eq.${id}&user_id=eq.${userId}`, 'PATCH', updates, { 'Prefer': 'return=representation' });
+    if (!rows || !rows.length) throw new Error('Nenhuma despesa foi atualizada — o registro pode ter sido removido ou pertencer a outro login.');
+    return rows[0];
+  },
+
+  async deleteExpense(id, userId) {
+    if (!userId) throw new Error('Sessão não identificada. Faça login novamente.');
+    return this.request(`/expense_entries?id=eq.${id}&user_id=eq.${userId}`, 'DELETE');
+  },
+
   // ---------- Resumo de Ads por marketplace + mês (fonte única de ACOS/TACOS) ----------
   async getAdsSummary(userId, platform, month) {
     const rows = await this.request(`/monthly_ads_summary?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}&limit=1`);

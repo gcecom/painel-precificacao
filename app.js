@@ -130,7 +130,7 @@ async function loadProducts(){
   writeForm();
 }
 
-function resetMonthlyState(){try{if(typeof window.resetMonthlyCache==='function')window.resetMonthlyCache()}catch(e){}}
+function resetMonthlyState(){try{if(typeof window.resetMonthlyCache==='function')window.resetMonthlyCache()}catch(e){}try{if(typeof window.resetDespesas==='function')window.resetDespesas()}catch(e){}}
 
 async function initAuth(){let user=await supabaseClient.getCurrentUser();if(user){currentUser=user;if(typeof window.navSetUser==='function')window.navSetUser(user.email||'');$('loginModal').classList.add('hidden');resetMonthlyState();await loadProducts();$('logoutBtn').style.display='block'}else{currentUser=null;products=[];selectedId='';resetMonthlyState();if(typeof window.navSetUser==='function')window.navSetUser('');$('loginModal').classList.remove('hidden');$('logoutBtn').style.display='none'}}
 

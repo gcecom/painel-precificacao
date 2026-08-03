@@ -5,11 +5,11 @@
 // o render continua sendo disparado por showView() (performance.js).
 (function(){
 const el=x=>document.getElementById(x);
-const VIEWS=['inicioView','pricingView','performanceView','monthlyView','dashboardView','produtosView','estoqueView','financeiroView','configView'];
+const VIEWS=['inicioView','pricingView','performanceView','monthlyView','dashboardView','produtosView','estoqueView','financeiroView','despesasView','configView'];
 // módulos que dependem de um canal específico (não aceitam "Todos")
 const NEEDS_CHANNEL={vendas:1,precificacao:1,anuncios:1};
 // módulos onde o seletor de canal não faz sentido (Dashboard sempre consolida tudo)
-const NO_CHANNEL={inicio:1,dash:1,produtos:1,estoque:1,financeiro:1,config:1};
+const NO_CHANNEL={inicio:1,dash:1,produtos:1,estoque:1,financeiro:1,despesas:1,config:1};
 const COLLAPSE_KEY='painel_nav_collapsed';
 let current='dash',lastChannel='mercadolivre';
 
@@ -55,6 +55,7 @@ function go(mod,opts){
   if(view==='estoqueView'&&typeof window.renderEstoque==='function')window.renderEstoque();
   if(view==='financeiroView'&&typeof window.renderFinanceiro==='function')window.renderFinanceiro();
   if(view==='inicioView'&&typeof window.renderInicio==='function')window.renderInicio();
+  if(view==='despesasView'&&typeof window.renderDespesas==='function')window.renderDespesas();
   if(view==='configView'){const u=el('cfgUser');if(u){let e='';try{e=(currentUser&&currentUser.email)||''}catch(x){}u.textContent=e?('Conectado como '+e):'Faça login para ver os dados da conta.'}}
   if(!opts||!opts.silent)window.scrollTo({top:0,behavior:'instant'});
 }

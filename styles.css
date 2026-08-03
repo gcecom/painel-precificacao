@@ -231,6 +231,29 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
   .ini-shortcut{min-height:64px}
 }
 
+/* ---------- Módulo Despesas ---------- */
+/* Reaproveita .panel/.field/.btn/.kpis/.monthly-table já existentes; aqui só o que é novo. */
+.dp-table td.mo-name{white-space:normal}
+.dp-note{display:block;font-size:10px;color:var(--muted);font-weight:400;margin-top:2px}
+.dp-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.dp-table .dp-acts{justify-content:flex-end}
+.dp-cards{display:none}
+.dp-card{border:1px solid var(--line);border-left-width:4px;border-radius:12px;background:var(--panel2);padding:12px;display:grid;gap:8px}
+.dp-card.paid{border-left-color:var(--good)}
+.dp-card.pending{border-left-color:var(--warn)}
+.dp-card.overdue{border-left-color:var(--bad)}
+.dp-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.dp-card-top b{color:var(--heading);font-size:13px;min-width:0}
+.dp-card-val{font-size:19px;font-weight:900;color:var(--heading);letter-spacing:-.02em}
+.dp-card-meta{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted)}
+.dp-card .dp-acts{justify-content:flex-start}
+.dp-card .btn{min-height:44px}
+@media(max-width:760px){
+  .dp-table-wrap{display:none}          /* no celular a tabela vira cartões */
+  .dp-cards{display:grid;gap:10px}
+}
+@media print{.dp-cards{display:none!important}.dp-acts{display:none!important}}
+
 /* ---------- Planilha de vendas (botão + menu + conferência) ---------- */
 .pl-wrap{position:relative;display:inline-flex}
 .pl-btn{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;padding:0 12px}

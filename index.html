@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=56">
+<link rel="stylesheet" href="styles.css?v=57">
 </head>
 <body>
 <div class="app-shell">
@@ -26,6 +26,7 @@
     <button class="side-item" data-module="precificacao" data-view="pricingView" data-title="Precificação" data-channel="1"><span class="si-ico">◈</span><span class="si-txt">Precificação</span></button>
     <button class="side-item" data-module="anuncios" data-view="performanceView" data-title="Anúncios" data-channel="1"><span class="si-ico">◎</span><span class="si-txt">Anúncios</span></button>
     <button class="side-item" data-module="financeiro" data-view="financeiroView" data-title="Financeiro"><span class="si-ico">$</span><span class="si-txt">Financeiro</span></button>
+    <button class="side-item" data-module="despesas" data-view="despesasView" data-title="Despesas"><span class="si-ico">◇</span><span class="si-txt">Despesas</span></button>
     <button class="side-item" data-module="config" data-view="configView" data-title="Configurações"><span class="si-ico">⚙</span><span class="si-txt">Configurações</span></button>
   </nav>
 </aside>
@@ -235,6 +236,41 @@
 <section class="panel"><div class="panel-head"><h2>DRE simplificada</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="finDre"></table></div><p class="help" id="finNota" style="margin-top:10px"></p></div></section>
 </section>
 
+<section id="despesasView" class="content hidden">
+<div class="overview"><h2>Despesas</h2><p>Despesas operacionais do negócio — colaboradores, contas, aluguel, ferramentas e serviços. Lançamentos independentes dos gastos gerais informados em Vendas.</p></div>
+
+<section class="kpis" id="dpKpis"></section>
+
+<section class="panel"><div class="panel-head"><h2 id="dpFormTitle">Nova despesa</h2><span class="status neutral" id="dpFormStatus">Preencha e salve</span></div><div class="panel-body">
+  <div class="fields">
+    <div class="field full"><label>Descrição *</label><input id="dpDesc" maxlength="160" placeholder="Ex.: Conta de energia — julho"></div>
+    <div class="field"><label>Categoria *</label><select id="dpCat"></select></div>
+    <div class="field"><label>Valor (R$) *</label><input id="dpAmount" type="number" min="0" step=".01" placeholder="0,00"></div>
+    <div class="field"><label>Vencimento *</label><input id="dpDue" type="date"></div>
+    <div class="field"><label>Status</label><select id="dpStatus"><option value="pending">Pendente</option><option value="paid">Paga</option></select></div>
+    <div class="field hidden" id="dpPaidField"><label>Data do pagamento *</label><input id="dpPaid" type="date"></div>
+    <div class="field"><label>Recorrência</label><select id="dpRec"><option value="none">Não recorrente</option><option value="monthly">Mensal</option></select><div class="help">Informativo nesta versão — não gera lançamentos futuros automaticamente.</div></div>
+    <div class="field full"><label>Observações</label><input id="dpNotes" maxlength="300" placeholder="Opcional"></div>
+  </div>
+  <div class="form-actions"><button class="btn primary" id="dpSave">Salvar despesa</button><button class="btn" id="dpCancel" hidden>Cancelar edição</button></div>
+</div></section>
+
+<div class="dash-filters">
+  <div class="field"><label>Buscar descrição</label><input id="dpSearch" placeholder="Digite para filtrar"></div>
+  <div class="field"><label>De (vencimento)</label><input id="dpFrom" type="date"></div>
+  <div class="field"><label>Até (vencimento)</label><input id="dpTo" type="date"></div>
+  <div class="field"><label>Categoria</label><select id="dpFilterCat"><option value="">Todas</option></select></div>
+  <div class="field"><label>Status</label><select id="dpFilterStatus"><option value="">Todas</option><option value="pending">Pendentes</option><option value="paid">Pagas</option><option value="overdue">Vencidas</option></select></div>
+  <div class="dash-filter-actions"><button class="btn" id="dpThisMonth">Mês atual</button><button class="btn" id="dpClear">Limpar filtros</button></div>
+</div>
+<div class="help" id="dpMsg">&nbsp;</div>
+
+<section class="panel"><div class="panel-head"><h2>Lançamentos</h2><span class="status neutral" id="dpCount">—</span></div><div class="panel-body">
+  <div class="table-wrap dp-table-wrap"><table class="monthly-table dp-table" id="dpTable"></table></div>
+  <div class="dp-cards" id="dpCards"></div>
+</div></section>
+</section>
+
 <section id="configView" class="content hidden">
 <div class="overview"><h2>Configurações</h2><p>Conta, aparência e dados.</p></div>
 <section class="panel"><div class="panel-head"><h2>Conta</h2></div><div class="panel-body"><p class="help" id="cfgUser"></p></div></section>
@@ -332,19 +368,20 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=56"></script>
-<script src="app.js?v=56"></script>
+<script src="supabase.js?v=57"></script>
+<script src="app.js?v=57"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=56"></script>
-<script src="nav.js?v=56"></script>
-<script src="produtos.js?v=56"></script>
-<script src="estoque.js?v=56"></script>
-<script src="consolida.js?v=56"></script>
-<script src="dashboard.js?v=56"></script>
-<script src="financeiro.js?v=56"></script>
-<script src="daterange.js?v=56"></script>
-<script src="inicio.js?v=56"></script>
-<script src="planilha.js?v=56"></script>
-<script src="tiny.js?v=56"></script>
+<script src="performance.js?v=57"></script>
+<script src="nav.js?v=57"></script>
+<script src="produtos.js?v=57"></script>
+<script src="estoque.js?v=57"></script>
+<script src="consolida.js?v=57"></script>
+<script src="dashboard.js?v=57"></script>
+<script src="financeiro.js?v=57"></script>
+<script src="daterange.js?v=57"></script>
+<script src="inicio.js?v=57"></script>
+<script src="planilha.js?v=57"></script>
+<script src="tiny.js?v=57"></script>
+<script src="despesas.js?v=57"></script>
 </body>
 </html>
