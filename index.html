@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=55">
+<link rel="stylesheet" href="styles.css?v=56">
 </head>
 <body>
 <div class="app-shell">
@@ -208,7 +208,16 @@
   <div class="field"><label>Categoria</label><select id="stCat"><option value="">Todas</option></select></div>
   <div class="field"><label>Status</label><select id="stStatus"><option value="">Todos</option><option value="low">Estoque baixo</option><option value="out">Sem estoque</option><option value="ok">Estoque normal</option></select></div>
   <div class="field"><label>Ordenar por</label><select id="stSort"><option value="value">Maior valor em estoque</option><option value="qtyDesc">Maior quantidade</option><option value="qtyAsc">Menor quantidade</option><option value="cost">Maior custo</option><option value="price">Maior preço de venda</option></select></div>
-  <div class="dash-filter-actions"><button class="btn primary" id="stSave">Salvar estoque</button></div>
+  <div class="dash-filter-actions">
+    <span class="pl-wrap" id="tyWrap">
+      <button class="btn pl-btn" id="tyBtn" type="button" title="Planilha" aria-label="Planilha de inventário Tiny" aria-haspopup="menu">🗎</button>
+      <div class="pl-menu hidden" id="tyMenu" role="menu">
+        <button type="button" role="menuitem" id="tyModelo">Baixar modelo Tiny</button>
+        <button type="button" role="menuitem" id="tyImportar">Importar inventário Tiny</button>
+      </div>
+      <input type="file" id="tyFile" accept=".xls,.xlsx,.csv" hidden>
+    </span>
+    <button class="btn primary" id="stSave">Salvar estoque</button></div>
 </div>
 <div class="help" id="stStatusMsg">&nbsp;</div>
 <section class="kpis" id="stKpis"></section>
@@ -309,6 +318,13 @@
   </div>
 </div>
 
+<div class="modal hidden" id="tyModal">
+  <div class="modal-content pl-modal">
+    <div class="panel-head"><h2>Conferência do inventário Tiny</h2></div>
+    <div class="panel-body" id="tyModalBody"></div>
+    <div class="form-actions pl-actions"><button class="btn primary" id="tyConfirm">Atualizar</button><button class="btn" id="tyCancel">Cancelar</button></div>
+  </div>
+</div>
 <div class="modal hidden" id="plModal">
   <div class="modal-content pl-modal">
     <div class="panel-head"><h2>Conferência da planilha</h2></div>
@@ -316,18 +332,19 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=55"></script>
-<script src="app.js?v=55"></script>
+<script src="supabase.js?v=56"></script>
+<script src="app.js?v=56"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=55"></script>
-<script src="nav.js?v=55"></script>
-<script src="produtos.js?v=55"></script>
-<script src="estoque.js?v=55"></script>
-<script src="consolida.js?v=55"></script>
-<script src="dashboard.js?v=55"></script>
-<script src="financeiro.js?v=55"></script>
-<script src="daterange.js?v=55"></script>
-<script src="inicio.js?v=55"></script>
-<script src="planilha.js?v=55"></script>
+<script src="performance.js?v=56"></script>
+<script src="nav.js?v=56"></script>
+<script src="produtos.js?v=56"></script>
+<script src="estoque.js?v=56"></script>
+<script src="consolida.js?v=56"></script>
+<script src="dashboard.js?v=56"></script>
+<script src="financeiro.js?v=56"></script>
+<script src="daterange.js?v=56"></script>
+<script src="inicio.js?v=56"></script>
+<script src="planilha.js?v=56"></script>
+<script src="tiny.js?v=56"></script>
 </body>
 </html>

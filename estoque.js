@@ -215,4 +215,22 @@ window.stockSnapshot=()=>{
 };
 window.stockEnsureLoaded=ensureLoaded;
 window.resetStock=()=>{cache={};loadedFor=null;dirty=false};
+
+// ---------- API usada pela importação do inventário Tiny (tiny.js) ----------
+// Só escreve no cache em memória. NÃO grava no Supabase: quem confirma é "Salvar estoque".
+window.PainelEstoque={
+  products:()=>list(),
+  entry:id=>cache[id]||null,
+  isDirty:()=>dirty,
+  // rows: [{product_id, qty}] — atualiza SÓ os produtos presentes na planilha;
+  // os demais permanecem intactos (nada é apagado).
+  applyQty(rows){
+    (rows||[]).forEach(r=>{
+      const cur=cache[r.product_id]||{qty:0,min:0};
+      cache[r.product_id]=Object.assign({},cur,{qty:+r.qty||0});
+    });
+    markDirty();  // mostra "Alterações não salvas"
+    redraw();     // recalcula cards, gráficos e valor do estoque
+  }
+};
 })();
