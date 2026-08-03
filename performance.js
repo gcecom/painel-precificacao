@@ -737,6 +737,21 @@ function wireAdsSummaryInputs(){
 }
 wireAdsSummaryInputs();
 
+// Soma das despesas (expense_entries) com VENCIMENTO no mês. Serve só de SUGESTÃO para
+// "Gastos gerais do mês": quem vale para Dashboard/Financeiro continua sendo o valor
+// salvo em monthly_expenses — nada é somado duas vezes, porque consolida.js nunca lê
+// expense_entries. Se a tabela ainda não existir, devolve 0 sem quebrar a aba Vendas.
+let monthlyExpensesAuto=0;
+async function sumExpensesOfMonth(u,mo){
+  if(!u||!/^\d{4}-\d{2}$/.test(mo||''))return 0;
+  try{
+    const[y,m]=mo.split('-').map(Number);
+    const ultimo=new Date(y,m,0).getDate();
+    const rows=await supabaseClient.getExpenses(u,mo+'-01',mo+'-'+String(ultimo).padStart(2,'0'));
+    return money2((rows||[]).reduce((a,r)=>a+(+r.amount||0),0));
+  }catch(e){return 0}
+}
+
 // Busca os lançamentos DAQUELE mês + gastos gerais + resumo Ads (fonte única de ACOS/TACOS).
 // A chave inclui o mês: trocar de mês recarrega em vez de mostrar dado do mês anterior.
 async function ensureMonthlyLoaded(){
@@ -761,6 +776,14 @@ async function ensureMonthlyLoaded(){
   monthlyLoadedFor=key;
   monthlyDirty=false; // acabou de carregar do banco: nada pendente
   monthlySavedAt='';
+  // Sugestão a partir das Despesas: SÓ quando o mês ainda não tem gastos gerais salvos.
+  // Havendo valor salvo (manual ou já confirmado), ele é preservado — nunca sobrescrito.
+  monthlyExpensesAuto=await sumExpensesOfMonth(uid,mo);
+  const temGastoSalvo=exp&&exp.amount!=null&&+exp.amount>0;
+  if(!temGastoSalvo&&monthlyExpensesAuto>0){
+    monthlyExpenses=monthlyExpensesAuto;
+    monthlyDirty=true; // aparece como "Alterações não salvas": salvar é decisão do usuário
+  }
   // rascunho local mais novo que o banco: oferece recuperar o que não foi salvo
   const d=loadDraft();
   if(d&&d.cache){
@@ -1028,6 +1051,7 @@ async function renderMonthly(){
   setPersist(monthlyDirty?'dirty':(monthlyMonths.includes(curMonth())?'saved':'none'),monthlySavedAt||'—');
   await loadAdsSummaryForCurrent();
   if(el('monthlyExpenses').value!==String(monthlyExpenses||''))el('monthlyExpenses').value=monthlyExpenses||'';
+  renderExpensesHint();
   if(el('monthlyDas')&&el('monthlyDas').value!==String(monthlyDas||''))el('monthlyDas').value=monthlyDas||'';
   const _sumForInput=curUserId()?AdsSummary.get(curUserId(),curPlatform(),curMonth()):null;
   const _spendVal=_sumForInput?+_sumForInput.ads_spend||0:0;
@@ -1125,6 +1149,25 @@ function paintMonthlyTable(){
   renderMonthlyKpis(rows);
 }
 
+// Mostra a soma das Despesas do mês e, se divergir do que está no campo, um botão
+// para aplicar. Nunca troca o valor sozinho.
+function renderExpensesHint(){
+  const h=el('monthlyExpensesHint');if(!h)return;
+  const base='Valor único do negócio (vale para todos os marketplaces)';
+  if(!(monthlyExpensesAuto>0)){h.textContent=base;return}
+  const igual=money2(monthlyExpenses)===money2(monthlyExpensesAuto);
+  h.innerHTML=base+' · Despesas do mês: <b>'+fmtMoney(monthlyExpensesAuto)+'</b>'
+    +(igual?'':' <button type="button" class="btn small" id="monthlyUseExpenses">usar</button>');
+  const b=el('monthlyUseExpenses');
+  if(b)b.onclick=()=>{
+    monthlyExpenses=monthlyExpensesAuto;
+    el('monthlyExpenses').value=monthlyExpenses||'';
+    renderMonthlyKpis(monthlyRowsData());
+    markMonthlyDirty();
+    renderExpensesHint();
+  };
+}
+
 function monthlyTotals(rows){
   return rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,comm:a.comm+r.comm,frete:a.frete+r.frete,tax:a.tax+r.tax,cost:a.cost+r.cost,ads:a.ads+r.ads,profit:a.profit+r.profit}),{units:0,rev:0,comm:0,frete:0,tax:0,cost:0,ads:0,profit:0});
 }
@@ -1196,7 +1239,7 @@ el('monthlySave').onclick=()=>saveMonth();
 el('monthlyExpenses').oninput=()=>{
   monthlyExpenses=el('monthlyExpenses').value===''?0:money2(el('monthlyExpenses').value);
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
-  markMonthlyDirty();
+  markMonthlyDirty();renderExpensesHint();
 };
 if(el('monthlyDas'))el('monthlyDas').oninput=()=>{
   monthlyDas=el('monthlyDas').value===''?0:money2(el('monthlyDas').value);

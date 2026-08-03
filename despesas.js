@@ -78,6 +78,30 @@ function filtrar(){
   }).sort((a,b)=>b.due_date.localeCompare(a.due_date));
 }
 
+// ---------- ordenação da listagem (só visual; não toca filtros nem dados) ----------
+// [rótulo, chave, tipo]. Ações não ordena.
+const DP_COLS=[
+  ['Descrição','description','txt'],['Categoria','category','txt'],['Valor','amount','num'],
+  ['Vencimento','due_date','data'],['Status','status','txt'],['Recorrência','recurrence','txt']
+];
+let ordem={key:'',dir:-1}; // dir -1 = 1º clique: maior→menor / Z→A / mais recente primeiro
+const dpVal=(d,k)=>k==='status'?ROTULO[situacao(d)]
+  :(k==='recurrence'?(d.recurrence==='monthly'?'Mensal':'Não recorrente'):d[k]);
+
+function ordenar(rows){
+  const{key,dir}=ordem;
+  if(!key)return rows;
+  const tipo=(DP_COLS.find(c=>c[1]===key)||[])[2];
+  return rows.slice().sort((a,b)=>{
+    const x=dpVal(a,key),y=dpVal(b,key);
+    if(tipo==='num'){                       // valores: numérico, nunca texto
+      const nx=+x||0,ny=+y||0;return dir*(nx-ny);
+    }
+    // datas em ISO (AAAA-MM-DD) comparam cronologicamente como string
+    return dir*String(x??'').localeCompare(String(y??''),'pt-BR');
+  });
+}
+
 function preencherSelects(){
   const cats=categorias();
   const c=el('dpCat'),fc=el('dpFilterCat');
@@ -111,7 +135,13 @@ function renderLista(rows){
     return;
   }
   const rec=d=>d.recurrence==='monthly'?'Mensal':'Não recorrente';
-  tb.innerHTML='<thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Recorrência</th><th>Ações</th></tr></thead><tbody>'
+  const head='<thead><tr>'+DP_COLS.map(([label,key])=>{
+    const on=ordem.key===key;
+    const aria=on?(ordem.dir===-1?'descending':'ascending'):'none';
+    const seta=on?`<span class="mo-arrow" aria-hidden="true">${ordem.dir===-1?'↓':'↑'}</span>`:'';
+    return`<th aria-sort="${aria}"><button type="button" class="mo-sort${on?' on':''}" data-sort="${key}">${esc(label)}${seta}</button></th>`;
+  }).join('')+'<th>Ações</th></tr></thead>';
+  tb.innerHTML=head+'<tbody>'
     +rows.map(d=>{const s=situacao(d);return`<tr>
       <td class="mo-name">${esc(d.description)}${d.notes?`<small class="dp-note">${esc(d.notes)}</small>`:''}</td>
       <td>${esc(d.category)}</td>
@@ -129,12 +159,17 @@ function renderLista(rows){
       ${d.notes?`<p class="help">${esc(d.notes)}</p>`:''}
       <div class="dp-acts"><button class="btn small" data-edit="${d.id}">Editar</button><button class="btn small danger" data-del="${d.id}">Excluir</button></div>
     </article>`}).join('');
+  tb.querySelectorAll('.mo-sort').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.sort;
+    ordem=(ordem.key===k)?{key:k,dir:-ordem.dir}:{key:k,dir:-1};
+    redraw();   // refaz só a lista: filtros, formulário e dados seguem intactos
+  });
   document.querySelectorAll('#despesasView [data-edit]').forEach(b=>b.onclick=()=>editar(b.dataset.edit));
   document.querySelectorAll('#despesasView [data-del]').forEach(b=>b.onclick=()=>excluir(b.dataset.del));
 }
 
 function redraw(){
-  const rows=filtrar();
+  const rows=ordenar(filtrar());
   renderKpis(rows);
   renderLista(rows);
 }
@@ -296,6 +331,6 @@ window.renderDespesas=render;
 // logout limpa o estado em memória (mesmo padrão dos outros módulos)
 window.resetDespesas=()=>{itens=[];carregado=false;editandoId='';};
 // exposto para teste e para a futura integração com o Financeiro
-window.PainelDespesas={itens:()=>lista(),filtrar,situacao,
+window.PainelDespesas={itens:()=>lista(),filtrar,situacao,ordenar,ordemAtual:()=>({...ordem}),
   totalPorMes(){const m={};lista().forEach(d=>{const k=(d.due_date||'').slice(0,7);if(k)m[k]=(m[k]||0)+(+d.amount||0)});return m}};
 })();
