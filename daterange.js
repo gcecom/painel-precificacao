@@ -28,7 +28,8 @@ const RANGE_PRESETS=[
   {k:'ano',   label:'Este ano',         range:()=>[thisYear()+'-01',thisMonth()]},
   {k:'custom',label:'Personalizado',    custom:true},
 ];
-const DEFAULT_KEY='3m'; // padrão: últimos 3 meses (janela mensal útil sem exigir escolha)
+const DEFAULT_KEY='mesant'; // padrão: mês anterior (o mês corrente ainda está em curso)
+const defaultMonth=()=>addMonths(thisMonth(),-1); // mês padrão dos seletores de mês único
 
 const registry={}; // id do input -> { refresh() } para atualizar o rótulo do botão
 
@@ -130,7 +131,7 @@ function mountRange(hostId,fromId,toId,renderHook){
 function mountMonth(hostId,inputId){
   const host=el(hostId);if(!host)return;
   const{btn,pop,close}=makePopover(host);
-  const cur=()=>{const v=el(inputId)&&el(inputId).value;return /^\d{4}-\d{2}$/.test(v)?v:thisMonth()};
+  const cur=()=>{const v=el(inputId)&&el(inputId).value;return /^\d{4}-\d{2}$/.test(v)?v:defaultMonth()};
   const mkOpt=(label,fn)=>{const o=document.createElement('button');o.type='button';o.className='dp-opt';o.textContent=label;o.onclick=fn;return o};
 
   const optAtual=mkOpt('Mês atual',()=>apply(thisMonth()));

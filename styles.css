@@ -204,6 +204,19 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
 .ini-sc-txt{display:flex;flex-direction:column;min-width:0}
 .ini-sc-txt b{color:var(--heading);font-size:13px}
 .ini-sc-txt small{color:var(--muted);font-size:11px}
+.ini-frase{margin:6px 0 0;color:var(--muted);font-size:13px;font-style:italic}
+#inicioHello{letter-spacing:-.02em}
+.ini-plats{display:grid;gap:12px}
+.ini-plat{display:grid;gap:5px}
+.ini-plat-top{display:flex;align-items:center;gap:7px;font-size:12px}
+.ini-plat-top i{width:10px;height:10px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+.ini-plat-top b{color:var(--heading);flex:1;min-width:0}
+.ini-plat-top em{font-style:normal;font-weight:800;color:var(--heading)}
+.ini-plat-bar{display:block;height:7px;border-radius:99px;background:var(--track);overflow:hidden}
+.ini-plat-bar span{display:block;height:100%;border-radius:99px}
+.ini-plat small{font-size:11px;color:var(--muted)}
+.ini-plat small.pos{color:var(--good)}
+.ini-plat small.neg{color:var(--bad)}
 .ini-alerts{display:grid;gap:8px}
 .ini-alert{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--line);border-left-width:4px;border-radius:10px;background:var(--control);color:var(--text);text-align:left;cursor:pointer;font-size:12px}
 .ini-alert b{font-size:11px;white-space:nowrap;color:var(--accent)}
@@ -217,6 +230,30 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
   .ini-shortcuts{grid-template-columns:1fr 1fr}   /* atalhos em 2 colunas no celular */
   .ini-shortcut{min-height:64px}
 }
+
+/* ---------- Planilha de vendas (botão + menu + conferência) ---------- */
+.pl-wrap{position:relative;display:inline-flex}
+.pl-btn{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;padding:0 12px}
+.pl-menu{position:absolute;z-index:60;top:calc(100% + 6px);right:0;min-width:190px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column;gap:2px}
+.pl-menu.hidden{display:none}
+.pl-menu button{text-align:left;border:0;background:transparent;color:var(--text);padding:10px;border-radius:8px;font-weight:700;cursor:pointer;min-height:44px}
+.pl-menu button:hover{background:var(--soft)}
+.pl-modal{max-width:560px;width:min(560px,94vw);max-height:88vh;display:flex;flex-direction:column}
+.pl-modal .panel-body{overflow:auto}
+.pl-actions{padding:0 15px 15px;margin-top:0}
+.pl-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin:10px 0}
+.pl-stat{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);text-align:center}
+.pl-stat b{display:block;font-size:19px;color:var(--heading)}
+.pl-stat span{font-size:10px;color:var(--muted)}
+.pl-stat.good b{color:var(--good)}
+.pl-stat.warn b{color:var(--warn)}
+.pl-stat.bad b{color:var(--bad)}
+.pl-warn{background:var(--warnbg);color:var(--warn);border-radius:9px;padding:9px 11px;font-size:12px;margin:8px 0}
+.pl-det{margin:8px 0;font-size:12px}
+.pl-det summary{cursor:pointer;font-weight:800;color:var(--heading);min-height:38px;display:flex;align-items:center}
+.pl-det ul{margin:6px 0 0;padding-left:18px;color:var(--muted);display:grid;gap:4px}
+@media(max-width:520px){.pl-menu{right:auto;left:0}.pl-modal{width:96vw}.pl-sum{grid-template-columns:1fr 1fr}}
+@media print{.pl-wrap{display:none!important}}
 
 /* ---------- Precificação: acordeões no celular, tudo aberto no desktop ---------- */
 .acc{border-top:1px solid var(--line);margin-top:10px}

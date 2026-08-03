@@ -27,17 +27,35 @@ const ATALHOS=[
   ['financeiro','Financeiro','$','DRE simplificada'],
 ];
 
+// Saudação pelo horário LOCAL do usuário
 function saudacao(){
   const h=new Date().getHours();
-  return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
+  if(h<12)return'Bom dia, Gestor! \u2600\ufe0f';
+  if(h<18)return'Boa tarde, Gestor! \ud83d\udc4b';
+  return'Boa noite, Gestor! \ud83c\udf19';
 }
-function primeiroNome(){
-  try{
-    const e=(currentUser&&currentUser.email)||'';
-    if(!e)return'';
-    const n=e.split('@')[0].replace(/[._-]+/g,' ').trim();
-    return n?n.charAt(0).toUpperCase()+n.slice(1):'';
-  }catch(e){return''}
+// Frase curta do dia — lista interna, sem API externa. O índice vem do dia do ano,
+// então a frase muda uma vez por dia e é a mesma em qualquer recarga daquele dia.
+const FRASES=[
+  'Quem mede o lucro por venda decide melhor o preço.',
+  'Margem boa começa no custo bem cadastrado.',
+  'Ads que não paga o próprio CPA é despesa, não investimento.',
+  'Estoque parado é capital dormindo.',
+  'Preço não é chute: é custo, taxa, imposto e meta.',
+  'O mês fecha melhor quando é lançado toda semana.',
+  'Comparar com o mês anterior mostra o que mudou de verdade.',
+  'Vender mais com margem menor pode significar lucrar menos.',
+  'Cada marketplace tem sua taxa — precifique canal a canal.',
+  'Girar produto rentável vale mais que girar qualquer produto.',
+  'Imposto previsto hoje evita susto no fim do mês.',
+  'Um SKU bem organizado economiza horas de conferência.',
+  'Reveja os campeões de venda: eles carregam o resultado.',
+  'Desconto sem conta vira prejuízo silencioso.'
+];
+function fraseDoDia(){
+  const d=new Date();
+  const dia=Math.floor((d-new Date(d.getFullYear(),0,0))/864e5); // dia do ano, local
+  return FRASES[dia%FRASES.length];
 }
 
 function renderAtalhos(){
@@ -94,17 +112,35 @@ function renderMeses(meses,atual){
   });
 }
 
+// Desempenho por marketplace — mesma agregação do Dashboard (byPlat), só leitura
+function renderPlats(a){
+  const box=el('inicioPlats');if(!box)return;
+  const nome=k=>{try{return PLATFORMS[k].name}catch(e){return k}};
+  const cor={mercadolivre:'#FFE600',shopee:'#EE4D2D',amazon:'#FF9900',magalu:'#0086FF'};
+  const linhas=a?Object.entries(a.byPlat).sort((x,y)=>y[1].rev-x[1].rev):[];
+  if(!linhas.length){box.innerHTML='<p class="help">Sem vendas lançadas neste mês.</p>';return}
+  const max=Math.max(...linhas.map(([,v])=>v.rev),1);
+  box.innerHTML=linhas.map(([k,v])=>{
+    const lucro=v.operational-v.ads;
+    return`<div class="ini-plat">
+      <span class="ini-plat-top"><i style="background:${cor[k]||'#3483fa'}"></i><b>${esc(nome(k))}</b><em>${fmtMoney(v.rev)}</em></span>
+      <span class="ini-plat-bar"><span style="width:${Math.max(2,v.rev/max*100)}%;background:${cor[k]||'#3483fa'}"></span></span>
+      <small class="${lucro>=0?'pos':'neg'}">Lucro ${fmtMoney(lucro)}</small>
+    </div>`;
+  }).join('');
+}
+
 async function render(){
-  const hello=el('inicioHello'),sub=el('inicioSub');
-  const nome=primeiroNome();
-  if(hello)hello.textContent=saudacao()+(nome?', '+nome:'')+'!';
+  const hello=el('inicioHello'),sub=el('inicioSub'),frase=el('inicioFrase');
+  if(hello)hello.textContent=saudacao();
+  if(frase)frase.textContent=fraseDoDia();
   renderAtalhos();
 
   const u=uid();
   if(!u){
     if(sub)sub.textContent='Faça login para ver o resumo do mês.';
     if(el('inicioKpis'))el('inicioKpis').innerHTML='';
-    renderAlertas(null,null);renderMeses([],'');
+    renderAlertas(null,null);renderMeses([],'');renderPlats(null);
     return;
   }
   if(loading)return;
@@ -142,6 +178,7 @@ async function render(){
       kpi('Valor do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra Estoque');
 
     renderAlertas(a,st);
+    renderPlats(a);
     lastKey=u+'|'+mes;
   }catch(e){
     console.error('Erro na página inicial:',e);

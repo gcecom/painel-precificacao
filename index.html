@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=54">
+<link rel="stylesheet" href="styles.css?v=55">
 </head>
 <body>
 <div class="app-shell">
@@ -125,7 +125,15 @@
   <div class="field"><label>Gastos gerais do mês (R$)</label><input id="monthlyExpenses" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único do negócio (vale para todos os marketplaces)</div></div>
   <div class="field"><label>DAS pago no mês (R$)</label><input id="monthlyDas" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor único por mês (não por marketplace). Informativo — o imposto sobre vendas já está no lucro operacional.</div></div>
   <div class="field"><label>Gasto total com Ads do mês (R$)</label><input id="monthlyAdsSpend" type="number" min="0" step=".01" placeholder="0,00"><div class="help">Valor real gasto nesta plataforma no mês selecionado</div></div>
-  <div class="monthly-actions"><span class="status neutral mo-persist" id="monthlyPersist">Não salvo</span><button class="btn primary" id="monthlySave">Salvar mês</button><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
+  <div class="monthly-actions"><span class="status neutral mo-persist" id="monthlyPersist">Não salvo</span>
+    <span class="pl-wrap" id="plWrap">
+      <button class="btn pl-btn" id="plBtn" type="button" title="Planilha" aria-label="Planilha de vendas" aria-haspopup="menu">🗎</button>
+      <div class="pl-menu hidden" id="plMenu" role="menu">
+        <button type="button" role="menuitem" id="plModelo">Baixar modelo</button>
+        <button type="button" role="menuitem" id="plImportar">Importar planilha</button>
+      </div>
+      <input type="file" id="plFile" accept=".xlsx,.xls,.csv" hidden>
+    </span><button class="btn primary" id="monthlySave">Salvar mês</button><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
 </div>
 <div class="monthly-months" id="monthlyMonthList"></div>
 <div class="mo-block-title">1. Resumo do mês</div>
@@ -137,11 +145,12 @@
 </section>
 
 <section id="inicioView" class="content hidden">
-  <div class="overview"><h2 id="inicioHello">Olá!</h2><p id="inicioSub">Resumo do mês e atalhos para os módulos.</p></div>
+  <div class="overview"><h2 id="inicioHello">Olá!</h2><p class="ini-frase" id="inicioFrase"></p><p id="inicioSub">Resumo do mês e atalhos para os módulos.</p></div>
   <section class="kpis" id="inicioKpis"></section>
   <div class="ini-grid">
     <section class="panel"><div class="panel-head"><h2>Atalhos</h2></div><div class="panel-body"><div class="ini-shortcuts" id="inicioAtalhos"></div></div></section>
     <div class="ini-side">
+      <section class="panel"><div class="panel-head"><h2>Por marketplace</h2></div><div class="panel-body"><div class="ini-plats" id="inicioPlats"></div></div></section>
       <section class="panel"><div class="panel-head"><h2>Atenção necessária</h2><span class="status neutral" id="inicioAlertStatus">—</span></div><div class="panel-body"><div class="ini-alerts" id="inicioAlertas"></div></div></section>
       <section class="panel"><div class="panel-head"><h2>Meses salvos</h2></div><div class="panel-body"><div class="ini-months" id="inicioMeses"></div></div></section>
     </div>
@@ -300,17 +309,25 @@
   </div>
 </div>
 
-<script src="supabase.js?v=54"></script>
-<script src="app.js?v=54"></script>
+<div class="modal hidden" id="plModal">
+  <div class="modal-content pl-modal">
+    <div class="panel-head"><h2>Conferência da planilha</h2></div>
+    <div class="panel-body" id="plModalBody"></div>
+    <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
+  </div>
+</div>
+<script src="supabase.js?v=55"></script>
+<script src="app.js?v=55"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=54"></script>
-<script src="nav.js?v=54"></script>
-<script src="produtos.js?v=54"></script>
-<script src="estoque.js?v=54"></script>
-<script src="consolida.js?v=54"></script>
-<script src="dashboard.js?v=54"></script>
-<script src="financeiro.js?v=54"></script>
-<script src="daterange.js?v=54"></script>
-<script src="inicio.js?v=54"></script>
+<script src="performance.js?v=55"></script>
+<script src="nav.js?v=55"></script>
+<script src="produtos.js?v=55"></script>
+<script src="estoque.js?v=55"></script>
+<script src="consolida.js?v=55"></script>
+<script src="dashboard.js?v=55"></script>
+<script src="financeiro.js?v=55"></script>
+<script src="daterange.js?v=55"></script>
+<script src="inicio.js?v=55"></script>
+<script src="planilha.js?v=55"></script>
 </body>
 </html>

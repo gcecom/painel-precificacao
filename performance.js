@@ -640,11 +640,14 @@ window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyDas=0;mon
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
 const monthLabel=m=>/^\d{4}-\d{2}$/.test(m||'')?m.slice(5)+'/'+m.slice(0,4):'—';
-function curMonth(){const v=el('monthlyMonth')&&el('monthlyMonth').value;return /^\d{4}-\d{2}$/.test(v)?v:thisMonth()}
+// Mês padrão = MÊS ANTERIOR: o mês corrente ainda está em curso, o fechamento
+// normalmente é do anterior. Meses já salvos continuam sendo abertos pelos atalhos.
+const prevMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
+function curMonth(){const v=el('monthlyMonth')&&el('monthlyMonth').value;return /^\d{4}-\d{2}$/.test(v)?v:prevMonth()}
 
 // Um único "mês atual" para as duas abas — troca em uma reflete na outra.
 function syncMonthInputs(v){
-  const val=/^\d{4}-\d{2}$/.test(v||'')?v:thisMonth();
+  const val=/^\d{4}-\d{2}$/.test(v||'')?v:prevMonth();
   const m=el('monthlyMonth'),a=el('adsSummaryMonth');
   if(m&&m.value!==val)m.value=val;
   if(a&&a.value!==val)a.value=val;
@@ -1003,7 +1006,7 @@ function renderMonthList(){
 
 async function renderMonthly(){
   const tb=el('monthlyTable');
-  if(!el('monthlyMonth').value)el('monthlyMonth').value=thisMonth();
+  if(!el('monthlyMonth').value)el('monthlyMonth').value=prevMonth();
   el('monthlyTitle').textContent='Resultado mensal — '+platformName()+' · '+monthLabel(curMonth());
   if(!curUserId()){tb.innerHTML='<tbody><tr><td style="padding:16px">Faça login para lançar o resultado mensal.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
   tb.innerHTML='<tbody><tr><td style="padding:16px">Carregando...</td></tr></tbody>';
@@ -1163,4 +1166,25 @@ document.querySelectorAll('.platform-btn[data-platform]').forEach(b=>b.addEventL
   if(!el('monthlyView').classList.contains('hidden')){if(!confirmLeaveMonth())return;monthlyLoadedFor=null;renderMonthly()}
   if(!el('performanceView').classList.contains('hidden'))renderAdsSummary();
 }));
+
+// ---------- API mínima usada pela importação de planilha (planilha.js) ----------
+// Só leitura do contexto + escrita no cache em memória. NÃO grava no Supabase:
+// quem confirma é o botão "Salvar mês", como em qualquer edição manual da tabela.
+window.PainelVendas={
+  month:()=>curMonth(),
+  platform:()=>curPlatform(),
+  platformName:()=>platformName(),
+  products:()=>savedProducts(),
+  entry:id=>monthlyCache[id]||null,
+  isDirty:()=>monthlyDirty,
+  // rows: [{product_id, units, price}] — atualiza SÓ os produtos presentes na planilha
+  apply(rows){
+    (rows||[]).forEach(r=>{
+      const cur=monthlyCache[r.product_id]||{};
+      monthlyCache[r.product_id]=Object.assign({},cur,{units:r.units,price:r.price});
+    });
+    markMonthlyDirty();   // mostra "Alterações não salvas" e guarda rascunho local
+    renderMonthly();      // recalcula receita, Ads rateado, imposto, lucro e margem
+  }
+};
 })();
