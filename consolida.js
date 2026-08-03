@@ -42,7 +42,10 @@ function consolidar(raw, products, months, opts){
     const p=byId[r.product_id];if(!p)return;
     const ch=(p.channels&&p.channels[r.platform])||{};
     const units=+r.units||0;
-    const price=+r.price>0?+r.price:(ch.price||0);
+    // MESMA cascata da aba Vendas (monthlyRowsData): preço salvo do mês -> preço do
+    // canal -> preço padrão do cadastro. Sem o último degrau, uma linha salva com
+    // price=0 rendia receita/imposto na tela de Vendas e ZERO no Dashboard/Financeiro.
+    const price=+r.price>0?+r.price:(+ch.price>0?+ch.price:(+p.default_price||0));
     if(units<=0&&price<=0)return;
     const u=unitCosts(p,price,r.platform);
     lines.push({p,plat:r.platform,month:r.month,units,price,rev:units*price,

@@ -834,7 +834,11 @@ async function renderCompare(){
 // Custos por unidade de um produto EM UM marketplace, ao preço informado.
 // Fonte única do cálculo: usada pelo Resultado Mensal e pelo Dashboard Geral.
 function unitCosts(p,price,plat){
-  const base=(p.channels&&p.channels[plat])||(typeof channelDefaults==='function'?channelDefaults(plat):{});
+  // Mescla os padrões do canal POR BAIXO do que está salvo: um channels[plat] parcial
+  // (legado, sem `tax`/`taxBase`) herdaria 0% e zeraria o imposto do produto em silêncio.
+  // Valor salvo sempre vence — inclusive um 0 deliberado.
+  const defs=(typeof channelDefaults==='function')?channelDefaults(plat):{};
+  const base=Object.assign({},defs,(p.channels&&p.channels[plat])||{});
   // O "Preço médio" lançado no fechamento JÁ é o valor realizado no mês. Aplicar de novo
   // o desconto/cupom do cadastro faria as taxas incidirem sobre um preço menor que a
   // receita exibida, e a linha não fecharia (receita − custos ≠ lucro mostrado).
