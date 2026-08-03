@@ -741,7 +741,7 @@ wireAdsSummaryInputs();
 // "Gastos gerais do mês": quem vale para Dashboard/Financeiro continua sendo o valor
 // salvo em monthly_expenses — nada é somado duas vezes, porque consolida.js nunca lê
 // expense_entries. Se a tabela ainda não existir, devolve 0 sem quebrar a aba Vendas.
-let monthlyExpensesAuto=0;
+let monthlyExpensesAuto=0,monthlyExpensesSuggested=false;
 async function sumExpensesOfMonth(u,mo){
   if(!u||!/^\d{4}-\d{2}$/.test(mo||''))return 0;
   try{
@@ -780,10 +780,10 @@ async function ensureMonthlyLoaded(){
   // Havendo valor salvo (manual ou já confirmado), ele é preservado — nunca sobrescrito.
   monthlyExpensesAuto=await sumExpensesOfMonth(uid,mo);
   const temGastoSalvo=exp&&exp.amount!=null&&+exp.amount>0;
-  if(!temGastoSalvo&&monthlyExpensesAuto>0){
-    monthlyExpenses=monthlyExpensesAuto;
-    monthlyDirty=true; // aparece como "Alterações não salvas": salvar é decisão do usuário
-  }
+  // Preenche como SUGESTÃO — não marca o mês como sujo. Marcar sujo faria a troca de mês
+  // pedir "alterações não salvas" sem o usuário ter mexido em nada.
+  monthlyExpensesSuggested=!temGastoSalvo&&monthlyExpensesAuto>0;
+  if(monthlyExpensesSuggested)monthlyExpenses=monthlyExpensesAuto;
   // rascunho local mais novo que o banco: oferece recuperar o que não foi salvo
   const d=loadDraft();
   if(d&&d.cache){
@@ -993,7 +993,7 @@ async function saveMonth(){
       .map(r=>supabaseClient.upsertMonthlySale({user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:units0(r.units),price:money2(r.price),ads_unit:0}));
     jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0,das:+monthlyDas||0}));
     await Promise.all(jobs);
-    monthlyDirty=false;clearDraft();
+    monthlyDirty=false;monthlyExpensesSuggested=false;clearDraft();
     monthlySavedAt=nowHM();setPersist('saved',monthlySavedAt);
     if(!monthlyMonths.includes(mo)){monthlyMonths.push(mo);monthlyMonths.sort().reverse();renderMonthList()}
     const h=el('monthlyMonthHint');
@@ -1157,12 +1157,14 @@ function renderExpensesHint(){
   if(!(monthlyExpensesAuto>0)){h.textContent=base;return}
   const igual=money2(monthlyExpenses)===money2(monthlyExpensesAuto);
   h.innerHTML=base+' · Despesas do mês: <b>'+fmtMoney(monthlyExpensesAuto)+'</b>'
+    +(monthlyExpensesSuggested?' <i>(sugerido — clique em “Salvar mês” para gravar)</i>':'')
     +(igual?'':' <button type="button" class="btn small" id="monthlyUseExpenses">usar</button>');
   const b=el('monthlyUseExpenses');
   if(b)b.onclick=()=>{
     monthlyExpenses=monthlyExpensesAuto;
     el('monthlyExpenses').value=monthlyExpenses||'';
     renderMonthlyKpis(monthlyRowsData());
+    monthlyExpensesSuggested=false;
     markMonthlyDirty();
     renderExpensesHint();
   };
@@ -1239,7 +1241,7 @@ el('monthlySave').onclick=()=>saveMonth();
 el('monthlyExpenses').oninput=()=>{
   monthlyExpenses=el('monthlyExpenses').value===''?0:money2(el('monthlyExpenses').value);
   const rows=monthlyRowsData();renderMonthlyKpis(rows);
-  markMonthlyDirty();renderExpensesHint();
+  monthlyExpensesSuggested=false;markMonthlyDirty();renderExpensesHint();
 };
 if(el('monthlyDas'))el('monthlyDas').oninput=()=>{
   monthlyDas=el('monthlyDas').value===''?0:money2(el('monthlyDas').value);
