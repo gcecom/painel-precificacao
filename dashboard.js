@@ -292,10 +292,11 @@ const EYE_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 let lucroVisivel=false;   // começa mascarado
 const MASCARA='R$ ••••••';
 
-function aplicarOlhoLucro(){
-  const box=el('dashKpis');if(!box)return;
+function aplicarOlhoLucro(boxId,label){
+  const box=el(boxId||'dashKpis');if(!box)return;
+  const alvo=label||LUCRO_LABEL;
   const card=[...box.querySelectorAll('.kpi')]
-    .find(c=>c.querySelector('.label')&&c.querySelector('.label').textContent.trim()===LUCRO_LABEL);
+    .find(c=>c.querySelector('.label')&&c.querySelector('.label').textContent.trim()===alvo);
   if(!card)return;
   const val=card.querySelector('.value');if(!val)return;
   const real=val.textContent;                       // valor já formatado pelo cálculo
@@ -466,6 +467,9 @@ if(el('dashToggleProducts'))el('dashToggleProducts').onclick=()=>{showAllProduct
 
 // Biblioteca de graficos compartilhada (reutilizada pelo modulo Estoque)
 window.PainelCharts={chartCard,emptyChart,lineChart,barChart,doughnut,CH};
+// Reutilizado pela tela Início, que tem o card "Lucro líquido" (sem o "final").
+// O estado de visível/oculto é compartilhado: esconder numa tela esconde na outra.
+window.PainelOlhoLucro=aplicarOlhoLucro;
 window.renderDashboard=()=>renderDashboard(false);
 window.resetDashboard=()=>{raw=null;agg=null;showAllProducts=false;const f=el('dashFrom'),t=el('dashTo');if(f)f.value='';if(t)t.value=''};
 })();

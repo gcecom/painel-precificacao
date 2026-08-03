@@ -176,6 +176,8 @@ async function render(){
       kpi('Ads',fmtMoney(a.adsTotal),'Gasto real do mês')+
       kpi('DAS sobre as vendas',fmtMoney(a.dasCalc),'Faturamento × taxa')+
       kpi('Valor do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra Estoque');
+    // mesmo olho do Dashboard, aqui no card "Lucro líquido"
+    try{if(typeof window.PainelOlhoLucro==='function')window.PainelOlhoLucro('inicioKpis','Lucro líquido')}catch(e){}
 
     renderAlertas(a,st);
     renderPlats(a);
