@@ -282,6 +282,37 @@ function delta(cur,prev,fmt){
   return`<span class="dash-delta ${up?'pos':'neg'}">${up?'▲':'▼'} ${(fmt||fmtMoney)(Math.abs(d))}${Number.isFinite(p)?' ('+fmtPct(Math.abs(p))+')':''} vs. anterior</span>`;
 }
 
+// ---------- olho de mostrar/ocultar no card "Lucro líquido final" ----------
+// O card é gerado pelo helper kpi() (string HTML), então o botão é injetado DEPOIS
+// da renderização, localizando o card pelo texto do rótulo. Não altera cálculo nem
+// os demais cards. O valor começa mascarado; a escolha do usuário vale até recarregar.
+const LUCRO_LABEL='Lucro líquido final';
+const EYE_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>';
+let lucroVisivel=false;   // começa mascarado
+const MASCARA='R$ ••••••';
+
+function aplicarOlhoLucro(){
+  const box=el('dashKpis');if(!box)return;
+  const card=[...box.querySelectorAll('.kpi')]
+    .find(c=>c.querySelector('.label')&&c.querySelector('.label').textContent.trim()===LUCRO_LABEL);
+  if(!card)return;
+  const val=card.querySelector('.value');if(!val)return;
+  const real=val.textContent;                       // valor já formatado pelo cálculo
+  val.innerHTML='<span class="kpi-val"></span>'
+    +'<button type="button" class="kpi-eye" id="dashLucroEye"></button>';
+  const span=val.querySelector('.kpi-val'),btn=val.querySelector('.kpi-eye');
+  const pintar=()=>{
+    span.textContent=lucroVisivel?real:MASCARA;
+    btn.innerHTML=lucroVisivel?EYE_ON:EYE_OFF;
+    btn.setAttribute('aria-label',lucroVisivel?'Ocultar lucro líquido':'Mostrar lucro líquido');
+    btn.setAttribute('aria-pressed',lucroVisivel?'true':'false');
+    btn.title=btn.getAttribute('aria-label');
+  };
+  btn.onclick=()=>{lucroVisivel=!lucroVisivel;pintar()};
+  pintar();
+}
+
 function renderKpis(a){
   const t=a.total,P=aggPrev;
   const st=stock;
@@ -304,6 +335,7 @@ function renderKpis(a){
     kpi('Valor atual do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra a aba Estoque')+
     kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade':'Abra a aba Estoque')+
     kpi('Produtos com estoque baixo',st?fmtInt(st.low):'—',st?(st.out?fmtInt(st.out)+' sem estoque':'Nenhum sem estoque'):'Abra a aba Estoque');
+  aplicarOlhoLucro();
 }
 
 // ---------- tabelas ----------
