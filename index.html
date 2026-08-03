@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=58">
+<link rel="stylesheet" href="styles.css?v=59">
 </head>
 <body>
 <div class="app-shell">
@@ -18,16 +18,16 @@
     <button class="side-toggle" id="navToggle" type="button" aria-label="Recolher menu">‹</button>
   </div>
   <nav class="side-menu" id="sideMenu" aria-label="Módulos">
-    <button class="side-item" data-module="inicio" data-view="inicioView" data-title="Início"><span class="si-ico">⌂</span><span class="si-txt">Início</span></button>
-    <button class="side-item" data-module="dash" data-view="dashboardView" data-title="Dashboard Geral"><span class="si-ico">▤</span><span class="si-txt">Dashboard</span></button>
-    <button class="side-item" data-module="produtos" data-view="produtosView" data-title="Produtos"><span class="si-ico">◳</span><span class="si-txt">Produtos</span></button>
-    <button class="side-item" data-module="estoque" data-view="estoqueView" data-title="Estoque"><span class="si-ico">▦</span><span class="si-txt">Estoque</span></button>
-    <button class="side-item" data-module="vendas" data-view="monthlyView" data-title="Vendas — Resultado mensal" data-channel="1"><span class="si-ico">↗</span><span class="si-txt">Vendas</span></button>
-    <button class="side-item" data-module="precificacao" data-view="pricingView" data-title="Precificação" data-channel="1"><span class="si-ico">◈</span><span class="si-txt">Precificação</span></button>
-    <button class="side-item" data-module="anuncios" data-view="performanceView" data-title="Anúncios" data-channel="1"><span class="si-ico">◎</span><span class="si-txt">Anúncios</span></button>
-    <button class="side-item" data-module="financeiro" data-view="financeiroView" data-title="Financeiro"><span class="si-ico">$</span><span class="si-txt">Financeiro</span></button>
-    <button class="side-item" data-module="despesas" data-view="despesasView" data-title="Despesas"><span class="si-ico">◇</span><span class="si-txt">Despesas</span></button>
-    <button class="side-item" data-module="config" data-view="configView" data-title="Configurações"><span class="si-ico">⚙</span><span class="si-txt">Configurações</span></button>
+    <button class="side-item" data-module="inicio" data-view="inicioView" data-title="Início"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="si-txt">Início</span></button>
+    <button class="side-item" data-module="dash" data-view="dashboardView" data-title="Dashboard Geral"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span><span class="si-txt">Dashboard</span></button>
+    <button class="side-item" data-module="produtos" data-view="produtosView" data-title="Produtos"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span><span class="si-txt">Produtos</span></button>
+    <button class="side-item" data-module="estoque" data-view="estoqueView" data-title="Estoque"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect width="12" height="12" x="6" y="10"/></svg></span><span class="si-txt">Estoque</span></button>
+    <button class="side-item" data-module="vendas" data-view="monthlyView" data-title="Vendas — Resultado mensal" data-channel="1"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span><span class="si-txt">Vendas</span></button>
+    <button class="side-item" data-module="precificacao" data-view="pricingView" data-title="Precificação" data-channel="1"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span><span class="si-txt">Precificação</span></button>
+    <button class="side-item" data-module="anuncios" data-view="performanceView" data-title="Anúncios" data-channel="1"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span><span class="si-txt">Anúncios</span></button>
+    <button class="side-item" data-module="financeiro" data-view="financeiroView" data-title="Financeiro"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="si-txt">Financeiro</span></button>
+    <button class="side-item" data-module="despesas" data-view="despesasView" data-title="Despesas"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg></span><span class="si-txt">Despesas</span></button>
+    <button class="side-item" data-module="config" data-view="configView" data-title="Configurações"><span class="si-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="si-txt">Configurações</span></button>
   </nav>
 </aside>
 <div class="nav-scrim" id="navScrim" hidden></div>
@@ -368,20 +368,20 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=58"></script>
-<script src="app.js?v=58"></script>
+<script src="supabase.js?v=59"></script>
+<script src="app.js?v=59"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=58"></script>
-<script src="nav.js?v=58"></script>
-<script src="produtos.js?v=58"></script>
-<script src="estoque.js?v=58"></script>
-<script src="consolida.js?v=58"></script>
-<script src="dashboard.js?v=58"></script>
-<script src="financeiro.js?v=58"></script>
-<script src="daterange.js?v=58"></script>
-<script src="inicio.js?v=58"></script>
-<script src="planilha.js?v=58"></script>
-<script src="tiny.js?v=58"></script>
-<script src="despesas.js?v=58"></script>
+<script src="performance.js?v=59"></script>
+<script src="nav.js?v=59"></script>
+<script src="produtos.js?v=59"></script>
+<script src="estoque.js?v=59"></script>
+<script src="consolida.js?v=59"></script>
+<script src="dashboard.js?v=59"></script>
+<script src="financeiro.js?v=59"></script>
+<script src="daterange.js?v=59"></script>
+<script src="inicio.js?v=59"></script>
+<script src="planilha.js?v=59"></script>
+<script src="tiny.js?v=59"></script>
+<script src="despesas.js?v=59"></script>
 </body>
 </html>
