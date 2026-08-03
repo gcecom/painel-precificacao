@@ -232,6 +232,18 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
   .ini-shortcut{min-height:64px}
 }
 
+/* ---------- Ordenação da tabela "Produtos vendidos" (Vendas) ---------- */
+.monthly-table th:has(.mo-sort){padding:0}
+.mo-sort{width:100%;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;
+  border:0;background:transparent;color:inherit;font:inherit;text-transform:inherit;
+  letter-spacing:inherit;cursor:pointer;padding:9px 8px;min-height:38px;text-align:right}
+.monthly-table th:first-child .mo-sort{justify-content:flex-start;text-align:left}
+.mo-sort:hover{color:var(--heading)}
+.mo-sort:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.mo-sort.on{color:var(--heading);font-weight:900}
+.mo-arrow{font-size:11px;line-height:1}
+@media print{.mo-sort{padding:0;pointer-events:none}.mo-arrow{display:none}}
+
 /* ---------- Módulo Despesas ---------- */
 /* Reaproveita .panel/.field/.btn/.kpis/.monthly-table já existentes; aqui só o que é novo. */
 .dp-table td.mo-name{white-space:normal}

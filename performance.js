@@ -1031,8 +1031,53 @@ async function renderMonthly(){
   if(el('monthlyAdsSpend').value!==String(_spendVal||''))el('monthlyAdsSpend').value=_spendVal||'';
   const list=savedProducts();
   if(!list.length){tb.innerHTML='<tbody><tr><td style="padding:16px">Cadastre produtos na aba <b>Precificação</b> para lançar as vendas do mês.</td></tr></tbody>';el('monthlyKpis').innerHTML='';return}
-  const head='<thead><tr><th>Produto</th><th>Custo compra</th><th>Unid. vendidas</th><th>Preço médio</th><th>Ads por venda</th><th>Receita bruta</th><th>Comissão + tarifas</th><th>Frete / outros</th><th>Imposto</th><th>Custo produtos</th><th>Ads total</th><th>Lucro líquido</th><th>% margem</th></tr></thead>';
-  const rows=monthlyRowsData();
+  paintMonthlyTable();
+  renderCompare();
+  try{if(window.PainelPeriod)window.PainelPeriod.refresh('monthlyMonth')}catch(e){} // atualiza o rótulo do seletor compacto
+}
+
+// ---------- ordenação da tabela (só visual, nada é gravado) ----------
+// Colunas: [rótulo, chave de ordenação]. A chave aponta para o campo já calculado
+// em monthlyRowsData — nenhum cálculo novo, só comparação.
+const MO_COLS=[
+  ['Produto','name'],['Custo compra','pcost'],['Unid. vendidas','units'],['Preço médio','price'],
+  ['Ads por venda','adsUnit'],['Receita bruta','rev'],['Comissão + tarifas','comm'],
+  ['Frete / outros','frete'],['Imposto','tax'],['Custo produtos','cost'],['Ads total','ads'],
+  ['Lucro líquido','profit'],['% margem','margin']
+];
+let monthlySort={key:'',dir:-1}; // dir -1 = maior→menor (1º clique); 1 = menor→maior
+const moVal=(r,k)=>k==='name'?String(r.p.name||''):(k==='pcost'?(+r.p.cost||0):r[k]);
+
+function sortMonthlyRows(rows){
+  const{key,dir}=monthlySort;
+  if(!key)return rows;
+  return rows.slice().sort((a,b)=>{
+    const x=moVal(a,key),y=moVal(b,key);
+    // dir=-1 -> decrescente (1º clique): maior→menor e Z→A
+    if(key==='name')return dir*x.localeCompare(y,'pt-BR');
+    const nx=Number(x),ny=Number(y);                        // numérico, nunca texto
+    const bx=Number.isFinite(nx),by=Number.isFinite(ny);
+    if(!bx&&!by)return 0;
+    if(!bx)return 1;                                        // margem "—" (NaN) sempre no fim
+    if(!by)return -1;
+    return dir*(nx-ny);
+  });
+}
+
+function monthlyHeadHTML(){
+  return'<thead><tr>'+MO_COLS.map(([label,key])=>{
+    const on=monthlySort.key===key;
+    const aria=on?(monthlySort.dir===-1?'descending':'ascending'):'none';
+    const seta=on?`<span class="mo-arrow" aria-hidden="true">${monthlySort.dir===-1?'↓':'↑'}</span>`:'';
+    return`<th aria-sort="${aria}"><button type="button" class="mo-sort${on?' on':''}" data-sort="${key}">${esc(label)}${seta}</button></th>`;
+  }).join('')+'</tr></thead>';
+}
+
+// Repinta só a tabela: os valores digitados vivem em monthlyCache, então reordenar
+// não perde nada. Não mexe em mês, filtros, rascunho nem no que está salvo.
+function paintMonthlyTable(){
+  const tb=el('monthlyTable');if(!tb)return;
+  const rows=sortMonthlyRows(monthlyRowsData());
   let body='';
   for(const r of rows){
     body+=`<tr data-mid="${r.p.id}">
@@ -1051,7 +1096,13 @@ async function renderMonthly(){
       <td data-c="margin">${fmtPct(r.margin)}</td>
     </tr>`;
   }
-  tb.innerHTML=head+'<tbody>'+body+'</tbody><tfoot>'+monthlyFootHTML(rows)+'</tfoot>';
+  tb.innerHTML=monthlyHeadHTML()+'<tbody>'+body+'</tbody><tfoot>'+monthlyFootHTML(rows)+'</tfoot>';
+  tb.querySelectorAll('.mo-sort').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.sort;
+    // 1º clique na coluna: maior→menor (Z→A no Produto). 2º clique inverte.
+    monthlySort=(monthlySort.key===k)?{key:k,dir:-monthlySort.dir}:{key:k,dir:-1};
+    paintMonthlyTable();
+  });
   tb.querySelectorAll('input[data-mo]').forEach(inp=>{
     inp.addEventListener('input',()=>{
       const id=inp.dataset.id;
@@ -1062,8 +1113,6 @@ async function renderMonthly(){
     });
   });
   renderMonthlyKpis(rows);
-  renderCompare();
-  try{if(window.PainelPeriod)window.PainelPeriod.refresh('monthlyMonth')}catch(e){} // atualiza o rótulo do seletor compacto
 }
 
 function monthlyTotals(rows){
