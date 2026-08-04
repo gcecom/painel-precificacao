@@ -255,6 +255,17 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
 .kpi-eye svg{width:20px;height:20px;display:block}
 @media print{.kpi-eye{display:none}}
 
+/* ---------- Tooltip do gráfico de 12 meses (Início) ---------- */
+.ini-chart{position:relative}
+.ini-chart svg{touch-action:none} /* deixa o toque controlar o tooltip, sem rolar a página */
+.ini-tip{position:absolute;top:6px;transform:translateX(-50%);display:none;z-index:5;
+  pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  box-shadow:var(--shadow);padding:8px 10px;min-width:140px;font-size:12px}
+.ini-tip-mes{font-weight:900;color:var(--heading);margin-bottom:5px}
+.ini-tip-row{display:flex;align-items:center;justify-content:space-between;gap:14px;line-height:1.5}
+.ini-tip-row b{font-weight:800}
+@media print{.ini-tip{display:none!important}}
+
 /* ---------- Módulo Despesas ---------- */
 /* Reaproveita .panel/.field/.btn/.kpis/.monthly-table já existentes; aqui só o que é novo. */
 .dp-table td.mo-name{white-space:normal}

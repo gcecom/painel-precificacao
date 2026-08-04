@@ -144,6 +144,60 @@ function ultimos12Meses(){                     // 12 meses até o mês ATUAL, da
   return out;
 }
 
+// Tooltip custom do gráfico de 12 meses: mês + Faturamento (cor da linha) + Lucro
+// líquido (cor da linha). O lucro só aparece quando o olho do card "Lucro líquido"
+// está ABERTO — lido em tempo real pelo aria-pressed do botão. Funciona a mouse e a
+// toque. Só interface: não recalcula nada, não toca em dados.
+function montarTooltip12(box,meses,fat,liq){
+  const C=window.PainelCharts||{},CH=C.CH||[];
+  const corFat=CH[0]||'#3483fa',corLiq=CH[1]||'#17803d';
+  const svg=box.querySelector('svg');if(!svg)return;
+  svg.querySelectorAll('title').forEach(t=>t.remove()); // tira o tooltip nativo do <title>
+  box.classList.add('ini-chart');
+  let tip=box.querySelector('.ini-tip');
+  if(!tip){tip=document.createElement('div');tip.className='ini-tip';tip.setAttribute('role','status');tip.setAttribute('aria-live','polite');box.appendChild(tip)}
+
+  const W=720,pad=44,N=meses.length;
+  const xAt=i=>N<2?W/2:pad+i*(W-pad-12)/(N-1);
+  const olhoAberto=()=>{const k=el('inicioKpis');const b=k&&k.querySelector('.kpi-eye');return b?b.getAttribute('aria-pressed')==='true':true};
+  let idx=-1;
+
+  function pintar(){
+    if(idx<0){tip.style.display='none';return}
+    const liqLinha=olhoAberto()
+      ? `<div class="ini-tip-row"><span style="color:${corLiq}">Lucro líquido</span><b style="color:${corLiq}">${fmtMoney(liq[idx])}</b></div>`
+      : '';
+    tip.innerHTML=`<div class="ini-tip-mes">${esc(monthLabel(meses[idx]))}</div>`
+      +`<div class="ini-tip-row"><span style="color:${corFat}">Faturamento</span><b style="color:${corFat}">${fmtMoney(fat[idx])}</b></div>`
+      +liqLinha;
+    tip.style.display='block';
+    // posiciona no ponto (converte viewBox -> pixels respeitando o preserveAspectRatio)
+    const rect=svg.getBoundingClientRect(),bx=box.getBoundingClientRect();
+    const scale=Math.min(rect.width/W,rect.height/240);
+    const offX=(rect.width-W*scale)/2;
+    const centro=(rect.left-bx.left)+offX+xAt(idx)*scale;
+    const meia=tip.offsetWidth/2;
+    tip.style.left=Math.max(meia+4,Math.min(centro,bx.width-meia-4))+'px';
+  }
+  function indiceDe(clientX){
+    const rect=svg.getBoundingClientRect();
+    const scale=Math.min(rect.width/W,rect.height/240);
+    const offX=(rect.width-W*scale)/2;
+    const vx=(clientX-rect.left-offX)/scale;              // x em coordenadas do viewBox
+    const passo=N<2?1:(W-pad-12)/(N-1);
+    return Math.max(0,Math.min(N-1,Math.round((vx-pad)/passo)));
+  }
+  const mover=e=>{const i=indiceDe(e.clientX);idx=i;pintar()};
+  svg.addEventListener('pointermove',mover);
+  svg.addEventListener('pointerdown',mover);              // toque = tap mostra
+  svg.addEventListener('pointerleave',()=>{idx=-1;pintar()});
+  // toque fora do gráfico esconde
+  document.addEventListener('pointerdown',e=>{if(!box.contains(e.target)){idx=-1;pintar()}});
+  // olho: ao clicar, o tooltip aberto atualiza na hora (lê o novo aria-pressed)
+  const eye=el('inicioKpis')&&el('inicioKpis').querySelector('.kpi-eye');
+  if(eye&&!eye._tip12){eye._tip12=1;eye.addEventListener('click',()=>{if(idx>=0)setTimeout(pintar,0)})}
+}
+
 async function renderGrafico12(u){
   const box=el('inicioChart'),stt=el('inicioChartStatus');
   if(!box)return;
@@ -167,6 +221,7 @@ async function renderGrafico12(u){
     box.innerHTML=C.lineChart(meses.map(monthLabel),[
       {name:'Faturamento',data:fat},{name:'Lucro líquido',data:liq}
     ]);
+    montarTooltip12(box,meses,fat,liq);
     const comDado=meses.filter(m=>a.byMonth[m]).length;
     if(stt){stt.className='status '+(comDado?'good':'neutral');
       stt.textContent=comDado?comDado+' mês(es) com dados':'Sem dados no período'}
