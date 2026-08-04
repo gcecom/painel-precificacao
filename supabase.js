@@ -176,6 +176,16 @@ const supabaseClient = {
     return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}`);
   },
 
+  // A coluna `snapshot` só existe depois de sql/historico_congelado.sql. Enquanto não
+  // existir, o painel segue funcionando sem congelar o histórico (comportamento antigo).
+  _snapshotOk: null,
+  async hasSnapshot() {
+    if (this._snapshotOk !== null) return this._snapshotOk;
+    try { await this.request('/monthly_sales?select=snapshot&limit=1'); this._snapshotOk = true }
+    catch (e) { this._snapshotOk = false }
+    return this._snapshotOk;
+  },
+
   async upsertMonthlySale(row) {
     return this.request('/monthly_sales?on_conflict=user_id,platform,product_id,month', 'POST', row, {
       'Prefer': 'resolution=merge-duplicates,return=minimal',
@@ -201,6 +211,12 @@ const supabaseClient = {
     if (!months || !months.length) return [];
     const list = months.map(m => `"${m}"`).join(',');
     return this.request(`/monthly_sales?user_id=eq.${userId}&month=in.(${list})`);
+  },
+
+  // Vendas de produtos que NÃO estão mais no cadastro: sem isso o relatório perderia
+  // o histórico do produto excluído (item 2 da auditoria).
+  async getMonthlySalesRangeAll(userId, months) {
+    return this.getMonthlySalesRange(userId, months);
   },
 
   async getAdsSummaryRange(userId, months) {

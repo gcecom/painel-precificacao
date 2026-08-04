@@ -39,7 +39,10 @@ function consolidar(raw, products, months, opts){
     const dedup=(r.user_id||'')+'|'+r.platform+'|'+r.product_id+'|'+r.month;
     if(seen[dedup])return; // nunca soma registro duplicado do mesmo user/mkt/produto/mês
     seen[dedup]=true;
-    const p=byId[r.product_id];if(!p)return;
+    // #2 — produto excluído do cadastro NÃO pode apagar a venda antiga. Com snapshot,
+    // o histórico continua exato; sem ele (linha legada), a venda é preservada com o
+    // que está gravado (unidades e preço) e sinalizada como produto removido.
+    const p=byId[r.product_id]||{id:r.product_id,name:'Produto removido',sku:'',category:'',cost:0,channels:{},_removido:true};
     const ch=(p.channels&&p.channels[r.platform])||{};
     const units=+r.units||0;
     // MESMA cascata da aba Vendas (monthlyRowsData): preço salvo do mês -> preço do
@@ -47,7 +50,7 @@ function consolidar(raw, products, months, opts){
     // price=0 rendia receita/imposto na tela de Vendas e ZERO no Dashboard/Financeiro.
     const price=+r.price>0?+r.price:(+ch.price>0?+ch.price:(+p.default_price||0));
     if(units<=0&&price<=0)return;
-    const u=unitCosts(p,price,r.platform);
+    const u=unitCosts(p,price,r.platform,r.snapshot); // #1 — snapshot manda quando existe
     lines.push({p,plat:r.platform,month:r.month,units,price,rev:units*price,
       comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,
       operational:u.profit*units}); // lucro ANTES dos Ads mensais
@@ -63,7 +66,7 @@ function consolidar(raw, products, months, opts){
   });
 
   // 3) filtros DEPOIS do rateio (o pct não muda com o filtro)
-  const sel=lines.filter(l=>(!fPlat||l.plat===fPlat)&&inProd(l.p.id)&&inCat(l.p));
+  const sel=lines.filter(l=>(!fPlat||l.plat===fPlat)&&inProd(l.p.id)&&(l.p._removido?!fCat:inCat(l.p)));
 
   const zero=()=>({rev:0,units:0,ads:0,comm:0,frete:0,tax:0,cost:0,operational:0});
   const add=(a,l)=>{a.rev+=l.rev;a.units+=l.units;a.ads+=l.ads;a.comm+=l.comm;a.frete+=l.frete;a.tax+=l.tax;a.cost+=l.cost;a.operational+=l.operational;return a};
@@ -78,8 +81,11 @@ function consolidar(raw, products, months, opts){
 
   // Gastos gerais e DAS: 1x por mês, só nos meses com movimento selecionado
   const monthsWithData=Object.keys(byMonth).sort();
-  const gerais=monthsWithData.reduce((a,m)=>a+(expByMonth[m]||0),0);
-  const dasOficial=monthsWithData.reduce((a,m)=>a+(dasByMonth[m]||0),0); // soma correta em intervalos
+  // #5 — gastos gerais e DAS somam sobre TODOS os meses pedidos, não só os que tiveram
+  // venda: um mês só com despesa (sem faturamento) precisa aparecer no período.
+  const mesesPedidos=[...monthSet].sort();
+  const gerais=mesesPedidos.reduce((a,m)=>a+(expByMonth[m]||0),0);
+  const dasOficial=mesesPedidos.reduce((a,m)=>a+(dasByMonth[m]||0),0);
   // DAS CALCULADO sobre as vendas = faturamento x taxa do canal, somado por venda.
   // Vem do mesmo unitCosts (total.tax), então já está agregado sem duplicar por produto,
   // marketplace ou mês: por marketplace = byPlat[k].tax, por mês = byMonth[m].tax.
@@ -89,14 +95,20 @@ function consolidar(raw, products, months, opts){
   const adsTotal=total.ads;            // Ads descontado UMA vez
   // Lucro operacional JÁ inclui o imposto sobre vendas (total.tax embutido em operational).
   // O DAS informado é o valor real pago — NÃO é descontado de novo aqui (evita dupla contagem).
-  const liquido=total.operational-adsTotal-gerais;
+  // #6 — gastos gerais são do NEGÓCIO inteiro. Com filtro de marketplace, produto ou
+  // categoria, descontá-los do recorte distorceria o lucro daquele subconjunto: eles
+  // continuam sendo exibidos (gerais), mas não entram no líquido filtrado.
+  const filtrado=!!(fPlat||fProd||fCat);
+  const geraisAplicado=filtrado?0:gerais;
+  const liquido=total.operational-adsTotal-geraisAplicado;
 
   return{
     months:monthsWithData,total,byPlat,byProd,byMonth,expByMonth,dasByMonth,adsByKey,
-    gerais,dasOficial,dasCalc,adsTotal,liquido,
+    gerais,geraisAplicado,dasOficial,dasCalc,adsTotal,liquido,
     margemLiquida:RATIO(liquido,total.rev),
     tacos:RATIO(adsTotal,total.rev),
-    filtered:!!(fPlat||fProd||fCat)
+    filtered:!!(fPlat||fProd||fCat),
+    removidos:sel.filter(l=>l.p._removido).length
   };
 }
 

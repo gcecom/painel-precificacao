@@ -745,11 +745,24 @@ let monthlyExpensesAuto=0,monthlyExpensesSuggested=false;
 async function sumExpensesOfMonth(u,mo){
   if(!u||!/^\d{4}-\d{2}$/.test(mo||''))return 0;
   try{
-    const[y,m]=mo.split('-').map(Number);
-    const ultimo=new Date(y,m,0).getDate();
-    const rows=await supabaseClient.getExpenses(u,mo+'-01',mo+'-'+String(ultimo).padStart(2,'0'));
-    return money2((rows||[]).reduce((a,r)=>a+(+r.amount||0),0));
+    // Busca SEM recorte de período: a regra de recorrência depende do 1º vencimento,
+    // então filtrar por mês no banco perderia as mensais lançadas antes.
+    const rows=await supabaseClient.getExpenses(u);
+    return money2(somarDespesasDoMes(rows,mo));
   }catch(e){return 0}
+}
+
+// Regra de competência das despesas (pagas, pendentes e vencidas entram igual):
+//   * única   -> conta SÓ no mês do vencimento;
+//   * mensal  -> conta do mês do 1º vencimento em diante, nunca antes;
+//   * cada despesa entra UMA vez por mês (não gera lançamento futuro duplicado).
+function somarDespesasDoMes(rows,mo){
+  return (rows||[]).reduce((a,r)=>{
+    const venc=String(r.due_date||'').slice(0,7);
+    if(!/^\d{4}-\d{2}$/.test(venc))return a;
+    const vale=r.recurrence==='monthly' ? (mo>=venc) : (mo===venc);
+    return vale?a+(+r.amount||0):a;
+  },0);
 }
 
 // Busca os lançamentos DAQUELE mês + gastos gerais + resumo Ads (fonte única de ACOS/TACOS).
@@ -779,7 +792,10 @@ async function ensureMonthlyLoaded(){
   // Sugestão a partir das Despesas: SÓ quando o mês ainda não tem gastos gerais salvos.
   // Havendo valor salvo (manual ou já confirmado), ele é preservado — nunca sobrescrito.
   monthlyExpensesAuto=await sumExpensesOfMonth(uid,mo);
-  const temGastoSalvo=exp&&exp.amount!=null&&+exp.amount>0;
+  // #4 — existir a linha já basta: um 0 gravado de propósito é valor manual e deve ser
+  // preservado. Testar ">0" fazia o 0 ser tratado como "nunca preenchido" e a sugestão
+  // sobrescrevia o que o usuário tinha salvo.
+  const temGastoSalvo=!!(exp&&exp.amount!=null);
   // Preenche como SUGESTÃO — não marca o mês como sujo. Marcar sujo faria a troca de mês
   // pedir "alterações não salvas" sem o usuário ter mexido em nada.
   monthlyExpensesSuggested=!temGastoSalvo&&monthlyExpensesAuto>0;
@@ -859,23 +875,28 @@ async function renderCompare(){
 
 // Custos por unidade de um produto EM UM marketplace, ao preço informado.
 // Fonte única do cálculo: usada pelo Resultado Mensal e pelo Dashboard Geral.
-function unitCosts(p,price,plat){
+function unitCosts(p,price,plat,snap){
   // Mescla os padrões do canal POR BAIXO do que está salvo: um channels[plat] parcial
   // (legado, sem `tax`/`taxBase`) herdaria 0% e zeraria o imposto do produto em silêncio.
   // Valor salvo sempre vence — inclusive um 0 deliberado.
   const defs=(typeof channelDefaults==='function')?channelDefaults(plat):{};
-  const base=Object.assign({},defs,(p.channels&&p.channels[plat])||{});
+  // snap = custo e taxas CONGELADOS no fechamento daquele mês. Quando existe, ele manda:
+  // é o que impede o histórico de se mover quando o cadastro muda hoje (auditoria #1)
+  // e o que permite manter a venda de um produto já excluído (#2).
+  const base=(snap&&snap.ch)?Object.assign({},defs,snap.ch)
+                            :Object.assign({},defs,(p&&p.channels&&p.channels[plat])||{});
   // O "Preço médio" lançado no fechamento JÁ é o valor realizado no mês. Aplicar de novo
   // o desconto/cupom do cadastro faria as taxas incidirem sobre um preço menor que a
   // receita exibida, e a linha não fecharia (receita − custos ≠ lucro mostrado).
   // cost:0 → o custo editado na Precificação (simulação por canal) NUNCA entra no
   // fechamento mensal nem no Dashboard: aqui vale sempre o custo central de Produtos.
   const ch=Object.assign({},base,{discount:0,cost:0});
+  const pp=(snap&&snap.cost!=null)?{cost:money2(snap.cost),channels:p&&p.channels}:p;
   if(typeof calcAt==='function'){
-    const r=calcAt(p,ch,price);
-    return{comm:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:p.cost||0,profit:r.beforeAds,gross:r.gross};
+    const r=calcAt(pp,ch,price);
+    return{comm:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:(pp&&pp.cost)||0,profit:r.beforeAds,gross:r.gross};
   }
-  return{comm:0,frete:0,tax:0,cost:p.cost||0,profit:price-(p.cost||0),gross:price};
+  return{comm:0,frete:0,tax:0,cost:(pp&&pp.cost)||0,profit:price-((pp&&pp.cost)||0),gross:price};
 }
 // Custos no marketplace atualmente selecionado (usado pela aba Resultado Mensal)
 function monthlyUnit(p,price){return unitCosts(p,price,curPlatform())}
@@ -987,10 +1008,23 @@ async function saveMonth(){
   setPersist('saving');
   try{
     const rows=monthlyRowsData();
+    // Congela custo e taxas do fechamento (auditoria #1 e #2). Se a coluna `snapshot`
+    // ainda não existir no banco, salva sem ela — comportamento antigo, sem quebrar.
+    const comSnap=await supabaseClient.hasSnapshot();
+    const snapDe=p=>{
+      const c=(p.channels&&p.channels[plat])||{};
+      return{cost:money2(p.cost||0),ch:{tax:c.tax,taxBase:c.taxBase,commission:c.commission,
+        feeMode:c.feeMode,fixedFee:c.fixedFee,service:c.service,unitFee:c.unitFee,
+        freight:c.freight,packaging:c.packaging,returns:c.returns}};
+    };
     // 1 upsert por produto com lançamento + os gastos gerais (únicos por usuário/mês)
     const jobs=rows
       .filter(r=>r.units>0||(monthlyCache[r.p.id]&&(+monthlyCache[r.p.id].units>0||+monthlyCache[r.p.id].price>0)))
-      .map(r=>supabaseClient.upsertMonthlySale({user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:units0(r.units),price:money2(r.price),ads_unit:0}));
+      .map(r=>{
+        const row={user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:units0(r.units),price:money2(r.price),ads_unit:0};
+        if(comSnap)row.snapshot=snapDe(r.p);
+        return supabaseClient.upsertMonthlySale(row);
+      });
     jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0,das:+monthlyDas||0}));
     await Promise.all(jobs);
     monthlyDirty=false;monthlyExpensesSuggested=false;clearDraft();
