@@ -130,6 +130,53 @@ function renderPlats(a){
   }).join('');
 }
 
+// ---------- Faturamento x Lucro líquido — últimos 12 meses ----------
+// Reaproveita a MESMA consolidação do Dashboard (PainelConsolida) e a mesma
+// biblioteca de gráfico (PainelCharts.lineChart), então Ads rateado, gastos gerais
+// (1x por mês) e imposto seguem sem duplicidade. Só leitura, sem tocar no banco.
+const pad2=n=>String(n).padStart(2,'0');
+function ultimos12Meses(){                     // 12 meses até o mês ATUAL, datas locais
+  const d=new Date(),out=[];
+  for(let i=11;i>=0;i--){
+    const x=new Date(d.getFullYear(),d.getMonth()-i,1);
+    out.push(x.getFullYear()+'-'+pad2(x.getMonth()+1));
+  }
+  return out;
+}
+
+async function renderGrafico12(u){
+  const box=el('inicioChart'),stt=el('inicioChartStatus');
+  if(!box)return;
+  const C=window.PainelCharts;
+  if(!C||!C.lineChart){box.innerHTML='<p class="help">Gráfico indisponível.</p>';return}
+  const meses=ultimos12Meses();
+  try{
+    const[sales,ads,exp]=await Promise.all([
+      supabaseClient.getMonthlySalesRange(u,meses),
+      supabaseClient.getAdsSummaryRange(u,meses),
+      supabaseClient.getMonthlyExpensesRange(u,meses)
+    ]);
+    const a=window.PainelConsolida.consolidar({sales:sales||[],ads:ads||[],exp:exp||[]},
+      allProducts(),meses,{unitCosts:S().unitCosts});   // todos os marketplaces
+    // Mês sem dado = ZERO (a consolidação só devolve os meses com movimento)
+    const fat=meses.map(m=>a.byMonth[m]?a.byMonth[m].rev:0);
+    const liq=meses.map(m=>{
+      const b=a.byMonth[m];
+      return b?(b.operational-b.ads-(a.expByMonth[m]||0)):0; // mesma fórmula do Dashboard
+    });
+    box.innerHTML=C.lineChart(meses.map(monthLabel),[
+      {name:'Faturamento',data:fat},{name:'Lucro líquido',data:liq}
+    ]);
+    const comDado=meses.filter(m=>a.byMonth[m]).length;
+    if(stt){stt.className='status '+(comDado?'good':'neutral');
+      stt.textContent=comDado?comDado+' mês(es) com dados':'Sem dados no período'}
+  }catch(e){
+    console.error('Erro no gráfico de 12 meses:',e);
+    box.innerHTML='<p class="help">Não foi possível carregar o gráfico.</p>';
+    if(stt){stt.className='status bad';stt.textContent='Erro'}
+  }
+}
+
 async function render(){
   const hello=el('inicioHello'),sub=el('inicioSub'),frase=el('inicioFrase');
   if(hello)hello.textContent=saudacao();
@@ -141,6 +188,7 @@ async function render(){
     if(sub)sub.textContent='Faça login para ver o resumo do mês.';
     if(el('inicioKpis'))el('inicioKpis').innerHTML='';
     renderAlertas(null,null);renderMeses([],'');renderPlats(null);
+    if(el('inicioChart'))el('inicioChart').innerHTML='<p class="help">Faça login para ver o gráfico.</p>';
     return;
   }
   if(loading)return;
@@ -181,6 +229,7 @@ async function render(){
 
     renderAlertas(a,st);
     renderPlats(a);
+    await renderGrafico12(u);
     lastKey=u+'|'+mes;
   }catch(e){
     console.error('Erro na página inicial:',e);
