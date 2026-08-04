@@ -25,7 +25,74 @@ function current(){return products.find(x=>x.id===selectedId)}
 function currentChannel(p=current()){if(!p)return channelDefaults(platform);let c=p.channels?.[platform];return c||(p.channels=p.channels||{},p.channels[platform]=channelDefaults(platform))}
 
 function effectiveCommission(c){return c.feeMode==='premium'?c.commission+5:c.commission}
-function platformFees(c,price,net){let commission=net*effectiveCommission(c)/100,autoUnit=0,rule='Taxas informadas manualmente.';if(platform==='mercadolivre'){if(price>0&&price<12.5){autoUnit=price*.5;rule='Mercado Livre: abaixo de R$ 12,50, custo automático de 50% do item.'}else if(price<79){rule='Mercado Livre: de R$ 12,50 a R$ 78,99, informe logística por peso/dimensão no custo adicional.'}else rule='Mercado Livre: a partir de R$ 79, sem custo por unidade; informe o frete subsidiado do vendedor.'}else rule=`${PLATFORMS[platform].name}: use as taxas exatas do contrato/simulador; o painel não inventa uma tabela automática.`;return{commission,unit:autoUnit+c.unitFee,rule}}
+// ---------- Regras de taxa por marketplace ----------
+// Tabelas oficiais informadas pelo vendedor. Ficam atrás de um "modo de cobrança"
+// explícito: quem já usa 'manual'/'classic'/'premium' continua calculando igual —
+// nada de mudar silenciosamente o número de quem já estava rodando.
+const FEE_MODES={
+  mercadolivre:[
+    ['manual','Manual — valores do anúncio/contrato'],
+    ['mlclassic','Clássico + taxa fixa automática (tabela ML)'],
+    ['mlpremium','Premium + taxa fixa automática (tabela ML)'],
+    ['classic','Clássico — comissão-base (legado)'],
+    ['premium','Premium — comissão-base + 5 p.p. (legado)']
+  ],
+  shopee:[
+    ['manual','Manual — valores do contrato'],
+    ['shopee2026','Shopee a partir de 01/03/2026 — comissão por faixa + fixo por item']
+  ],
+  amazon:[['manual','Manual — comissão da categoria + tarifas DBA/FBA']],
+  magalu:[['manual','Manual — use o Simulador de Custos do Portal do Vendedor']]
+};
+
+// Taxa fixa do Mercado Livre por faixa de preço (só abaixo de R$ 79,00)
+function mlFixo(price){
+  if(price<=0)return{fix:0,txt:'informe o preço'};
+  if(price<12.5)return{fix:0,pctItem:50,txt:'abaixo de R$ 12,50 → custo automático de 50% do item'};
+  if(price<=29)return{fix:6.25,txt:'R$ 12,50–29,00 → taxa fixa R$ 6,25'};
+  if(price<=50)return{fix:6.50,txt:'R$ 29,01–50,00 → taxa fixa R$ 6,50'};
+  if(price<79)return{fix:6.75,txt:'R$ 50,01–78,99 → taxa fixa R$ 6,75'};
+  return{fix:0,txt:'a partir de R$ 79,00 → sem taxa fixa, mas com frete subsidiado pelo vendedor'};
+}
+// Comissão da Shopee por faixa de preço (vigor 01/03/2026)
+function shopeeFaixa(price){
+  if(price<80)return{pct:20,fix:4,txt:'até R$ 79,99 → 20% + R$ 4,00 por item'};
+  if(price<100)return{pct:14,fix:16,txt:'R$ 80,00–99,99 → 14% + R$ 16,00 por item'};
+  if(price<200)return{pct:14,fix:20,txt:'R$ 100,00–199,99 → 14% + R$ 20,00 por item'};
+  return{pct:14,fix:26,txt:'a partir de R$ 200,00 → 14% + R$ 26,00 por item'};
+}
+
+// plat EXPLÍCITO: antes esta função lia a variável global `platform`, então ao
+// consolidar uma linha da Shopee com o painel aberto no ML a regra do ML era aplicada
+// por engano. Agora cada canal calcula com a própria regra.
+function platformFees(c,price,net,plat){
+  plat=plat||platform;
+  const mode=c.feeMode||'manual';
+  let pct=effectiveCommission(c),fixed=n(c.fixedFee),autoUnit=0,rule;
+
+  if(mode==='shopee2026'){
+    const b=shopeeFaixa(price);pct=b.pct;fixed=b.fix;
+    rule=`Shopee (a partir de 01/03/2026): ${b.txt}. Frete Grátis é automático. Programas opcionais — Campanha de Destaque 3,5% e Ads Fácil 1,5% — entram em "Taxa adicional (%)". Logística própria: 25% do cupom de frete é do vendedor (lance em "Frete do vendedor").`;
+  }else if(mode==='mlclassic'||mode==='mlpremium'){
+    pct=n(c.commission)+(mode==='mlpremium'?5:0);
+    const b=mlFixo(price);
+    fixed=b.fix; if(b.pctItem)autoUnit=price*b.pctItem/100;
+    rule=`Mercado Livre ${mode==='mlpremium'?'Premium':'Clássico'} (${pct.toLocaleString('pt-BR')}%): ${b.txt}. A comissão varia por categoria — confirme no anúncio.`;
+  }else if(plat==='mercadolivre'){
+    // comportamento legado, preservado para quem já salvou assim
+    if(price>0&&price<12.5){autoUnit=price*.5;rule='Mercado Livre: abaixo de R$ 12,50, custo automático de 50% do item.'}
+    else if(price<79)rule='Mercado Livre: de R$ 12,50 a R$ 78,99, informe logística por peso/dimensão no custo adicional.';
+    else rule='Mercado Livre: a partir de R$ 79, sem custo por unidade; informe o frete subsidiado do vendedor.';
+  }else if(plat==='amazon'){
+    rule='Amazon: não existe taxa única. Some a comissão da categoria e a tarifa logística do modelo usado (DBA ou FBA, que variam por peso e dimensões) — no FBA há ainda armazenagem. Consulte as tabelas oficiais no Seller Central.';
+  }else if(plat==='magalu'){
+    rule='Magalu: não existe taxa padrão — a comissão varia por categoria, contrato e reputação, com tarifa fixa de cerca de R$ 5,00 por item e possível coparticipação no frete. Use o Simulador de Custos no Portal do Vendedor.';
+  }else{
+    rule=`${PLATFORMS[plat].name}: use as taxas exatas do contrato/simulador; o painel não inventa uma tabela automática.`;
+  }
+  return{commission:net*pct/100,unit:autoUnit+n(c.unitFee),fixed,rule};
+}
+
 
 function ads(c,base){let mode=c.adsMode,v=n(c.adsValue);if(mode==='roas')return{cpa:v>0?base/v:0,roas:v>0?v:Infinity,acos:v>0?1/v:0};if(mode==='cpa')return{cpa:v,roas:v>0?base/v:Infinity,acos:base>0?v/base:0};return{cpa:base*v/100,roas:v>0?100/v:Infinity,acos:v/100}}
 
@@ -33,7 +100,7 @@ function ads(c,base){let mode=c.adsMode,v=n(c.adsValue);if(mode==='roas')return{
 // 2) custo central do cadastro (Produtos) 3) zero. Fica só na simulação — Vendas e
 // Dashboard limpam esse campo (ver unitCosts em performance.js) e usam sempre p.cost.
 function effCost(p,c){return n(c&&c.cost)>0?n(c.cost):n(p&&p.cost)}
-function calcAt(p,c,price,roasOverride){let cost=effCost(p,c),gross=n(price),net=gross*(1-n(c.discount)/100),fees=platformFees(c,gross,net),taxBase=c.taxBase==='net'?net:gross,tax=taxBase*n(c.tax)/100,service=net*n(c.service)/100,returns=net*n(c.returns)/100,base=c.roasBase==='net'?net:gross,a=roasOverride?{cpa:base/roasOverride,roas:roasOverride,acos:1/roasOverride}:ads(c,base),beforeAds=net-fees.commission-c.fixedFee-service-tax-fees.unit-cost-c.packaging-c.freight-returns,profit=beforeAds-a.cpa,margin=gross?profit/gross:NaN,roi=cost?profit/cost:NaN,cpaMax=beforeAds,roasMin=beforeAds>0?base/beforeAds:Infinity,acosMax=base>0?beforeAds/base:NaN;return{gross,net,...fees,tax,service,returns,base,...a,beforeAds,profit,margin,roi,cpaMax,roasMin,acosMax,cost,platformTotal:fees.commission+c.fixedFee+service+fees.unit}}
+function calcAt(p,c,price,roasOverride,plat){let cost=effCost(p,c),gross=n(price),net=gross*(1-n(c.discount)/100),fees=platformFees(c,gross,net,plat),taxBase=c.taxBase==='net'?net:gross,tax=taxBase*n(c.tax)/100,service=net*n(c.service)/100,returns=net*n(c.returns)/100,base=c.roasBase==='net'?net:gross,a=roasOverride?{cpa:base/roasOverride,roas:roasOverride,acos:1/roasOverride}:ads(c,base),beforeAds=net-fees.commission-fees.fixed-service-tax-fees.unit-cost-c.packaging-c.freight-returns,profit=beforeAds-a.cpa,margin=gross?profit/gross:NaN,roi=cost?profit/cost:NaN,cpaMax=beforeAds,roasMin=beforeAds>0?base/beforeAds:Infinity,acosMax=base>0?beforeAds/base:NaN;return{gross,net,...fees,tax,service,returns,base,...a,beforeAds,profit,margin,roi,cpaMax,roasMin,acosMax,cost,platformTotal:fees.commission+fees.fixed+service+fees.unit}}
 
 function idealPrice(p,c,roas){if(effCost(p,c)<=0)return NaN;let lo=.01,hi=Math.max(c.price*2,effCost(p,c)*5,100);const target=Number(c.targetMargin)/100;for(let i=0;i<30&&calcAt(p,c,hi,roas).margin<target;i++)hi*=2;if(hi>1e7)return NaN;for(let i=0;i<80;i++){let mid=(lo+hi)/2;if(calcAt(p,c,mid,roas).margin>=target)hi=mid;else lo=mid}return Math.ceil(hi*100)/100}
 
@@ -47,7 +114,16 @@ for(let k of ['price','discount','cost','packaging','freight','returns','commiss
 if(n(c.cost)===n(p.cost))c.cost=0;
 return{p,c}}
 
-function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=effCost(p,c)||'';
+// Popula o seletor "Regra de cobrança" com as opções do marketplace atual, sem perder
+// o modo já salvo (mesmo que seja um modo legado que não está na lista daquele canal).
+function fillFeeModes(cur){
+  const sel=$('feeMode');if(!sel)return;
+  const opts=(FEE_MODES[platform]||[['manual','Manual']]).slice();
+  if(cur&&!opts.some(o=>o[0]===cur))opts.push([cur,cur+' (salvo)']);
+  sel.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
+  if(cur)sel.value=cur;
+}
+function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=effCost(p,c)||'';fillFeeModes(c.feeMode);
 // Preço do canal já salvo tem prioridade; se ainda for 0, herda o "Preço de venda padrão" do cadastro (Produtos). Campo continua editável.
 if(!(+c.price>0)&&+p.default_price>0)c.price=+p.default_price;
 for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])$(k).value=c[k]??0;for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])$(k).value=c[k];syncLabels();renderAll()}
@@ -58,9 +134,9 @@ function metric(label,value,sub=''){return`<article class="kpi"><div class="labe
 
 function diagnosis(p,c,r,ideal){if(r.gross<=0)return{level:'neutral',title:'Informe o preço de venda',text:'Cada plataforma precisa do seu próprio preço e das taxas reais.'};if(effCost(p,c)<=0)return{level:'warn',title:'Custo de compra pendente',text:'Corrija o custo antes de usar margem, ROI ou preço ideal.'};if(r.profit<0)return{level:'bad',title:'Venda no prejuízo',text:`Faltam ${money(Math.abs(r.profit))} por venda. O CPA máximo é ${money(r.cpaMax)}.`};if(r.margin<Number(c.targetMargin)/100)return{level:'warn',title:'Lucro abaixo da meta',text:`A venda lucra ${money(r.profit)}, mas a margem de ${pct(r.margin)} está abaixo da meta de ${Number(c.targetMargin).toLocaleString('pt-BR')}%.`};return{level:'good',title:'Meta de margem atingida',text:`A venda gera ${money(r.profit)} e supera a margem mínima definida.`}}
 
-function renderSaleAccount(p,c,r){let marketplace=r.commission+c.fixedFee+r.service+r.unit,taxes=r.tax,others=c.packaging+c.freight+r.returns,steps=[['Receita da venda',r.net,''],['Produto',effCost(p,c),'−'],['Taxas + impostos',marketplace+taxes,'−'],['Outros custos',others,'−'],['Anúncio por venda',r.cpa,'−'],[r.profit>=0?'Lucro por venda':'Prejuízo por venda',Math.abs(r.profit),'=']];$('saleEquation').innerHTML=steps.map((x,i)=>`${i?`<span class="operator">${x[2]}</span>`:''}<div class="sale-step ${i===steps.length-1?(r.profit>=0?'profit':'loss'):''}"><small>${x[0]}</small><b>${money(x[1])}</b></div>`).join('');let segments=[['Produto',effCost(p,c),'#55677f'],[PLATFORMS[platform].name,marketplace,'#7656a8'],['Impostos',taxes,'#a66a42'],['Outros',others,'#8c7355'],['Anúncios',r.cpa,'#d97706'],[r.profit>=0?'Lucro':'Prejuízo',Math.abs(r.profit),r.profit>=0?'#178a4b':'#c52c2c']],total=segments.reduce((s,x)=>s+x[1],0)||1;$('saleStack').innerHTML=segments.filter(x=>x[1]>0).map(x=>`<div class="sale-segment" title="${x[0]}: ${money(x[1])}" style="width:${x[1]/total*100}%;background:${x[2]}"><span>${x[0]}</span><b>${money(x[1])}</b></div>`).join('')}
+function renderSaleAccount(p,c,r){let marketplace=r.commission+(r.fixed||0)+r.service+r.unit,taxes=r.tax,others=c.packaging+c.freight+r.returns,steps=[['Receita da venda',r.net,''],['Produto',effCost(p,c),'−'],['Taxas + impostos',marketplace+taxes,'−'],['Outros custos',others,'−'],['Anúncio por venda',r.cpa,'−'],[r.profit>=0?'Lucro por venda':'Prejuízo por venda',Math.abs(r.profit),'=']];$('saleEquation').innerHTML=steps.map((x,i)=>`${i?`<span class="operator">${x[2]}</span>`:''}<div class="sale-step ${i===steps.length-1?(r.profit>=0?'profit':'loss'):''}"><small>${x[0]}</small><b>${money(x[1])}</b></div>`).join('');let segments=[['Produto',effCost(p,c),'#55677f'],[PLATFORMS[platform].name,marketplace,'#7656a8'],['Impostos',taxes,'#a66a42'],['Outros',others,'#8c7355'],['Anúncios',r.cpa,'#d97706'],[r.profit>=0?'Lucro':'Prejuízo',Math.abs(r.profit),r.profit>=0?'#178a4b':'#c52c2c']],total=segments.reduce((s,x)=>s+x[1],0)||1;$('saleStack').innerHTML=segments.filter(x=>x[1]>0).map(x=>`<div class="sale-segment" title="${x[0]}: ${money(x[1])}" style="width:${x[1]/total*100}%;background:${x[2]}"><span>${x[0]}</span><b>${money(x[1])}</b></div>`).join('')}
 
-function renderAll(){let p=current(),c=currentChannel(p);if(!p)return;let r=calcAt(p,c,c.price),ideal=idealPrice(p,c,r.roas),d=diagnosis(p,c,r,ideal);$('pageTitle').textContent=`Painel de Precificação — ${PLATFORMS[platform].name}`;$('platformRule').innerHTML=`<b>Regra atual:</b> ${r.rule}<br>Comissão efetiva: <b>${effectiveCommission(c).toLocaleString('pt-BR')}%</b>. Confirme taxas antes de publicar.`;$('kpis').innerHTML=metric('Lucro por venda via Ads',money(r.profit),`CPA ${money(r.cpa)} · ROAS ${Number.isFinite(r.roas)?r.roas.toFixed(2)+'x':'—'}`)+metric('Margem líquida',pct(r.margin),`Meta ${Number(c.targetMargin).toLocaleString('pt-BR')}%`)+metric('CPA máximo',money(r.cpaMax),'Limite antes do prejuízo')+metric('ROAS mínimo',Number.isFinite(r.roasMin)?r.roasMin.toFixed(2)+'x':'—','Ponto de equilíbrio')+metric('Preço ideal',money(ideal),`Ajuste ${money(ideal-c.price)}`)+metric('ACOS atual',pct(r.acos),`Máximo ${pct(r.acosMax)}`)+metric('ROI produto',pct(r.roi),'Lucro ÷ custo do produto')+metric('Taxas da plataforma',money(r.platformTotal),`${c.price?pct(r.platformTotal/c.price):'—'} do preço`)+metric('Sobra antes dos Ads',money(r.beforeAds),'CPA máximo unitário')+metric('Receita após desconto',money(r.net),`Desconto ${c.discount}%`);$('mainStatus').className='status '+d.level;$('mainStatus').textContent=d.level==='good'?'Meta atingida':d.level==='bad'?'Prejuízo':d.level==='warn'?'Atenção':'Aguardando';$('diagnosis').className='diag '+(d.level==='bad'?'badbox':d.level==='warn'?'warnbox':'');$('diagnosis').innerHTML=`<h3>${d.title}</h3><p>${d.text}</p><p><b>Preço ideal:</b> ${money(ideal)}</p><p><b>Ajuste no preço:</b> ${money(ideal-c.price)}</p>`;let rows=[['Preço bruto',r.gross,'#17803d'],['Desconto',r.gross-r.net,'#d32f2f'],['Comissão',r.commission,'#d32f2f'],['Taxa fixa + adicional',c.fixedFee+r.service+r.unit,'#d32f2f'],['Imposto',r.tax,'#d32f2f'],['Produto + embalagem + frete',effCost(p,c)+c.packaging+c.freight,'#d32f2f'],['Reserva devoluções',r.returns,'#d32f2f'],['Sobra antes dos Ads',r.beforeAds,'#d69e00'],['CPA / Ads',r.cpa,'#d32f2f'],['Lucro líquido',r.profit,r.profit>=0?'#17803d':'#c52c2c']],max=Math.max(...rows.map(x=>Math.abs(x[1])),1);$('waterfall').innerHTML=rows.map(x=>`<div class="water-row"><span>${x[0]}</span><div class="track"><div class="fill" style="width:${Math.max(2,Math.abs(x[1])/max*100)}%;background:${x[2]}"></div></div><b>${money(x[1])}</b></div>`).join('');renderSaleAccount(p,c,r);renderBusiness(p,c,r);renderScenarios(p,c);renderCatalog()}
+function renderAll(){let p=current(),c=currentChannel(p);if(!p)return;let r=calcAt(p,c,c.price),ideal=idealPrice(p,c,r.roas),d=diagnosis(p,c,r,ideal);$('pageTitle').textContent=`Painel de Precificação — ${PLATFORMS[platform].name}`;$('platformRule').innerHTML=`<b>Regra atual:</b> ${r.rule}<br>Comissão efetiva: <b>${effectiveCommission(c).toLocaleString('pt-BR')}%</b>. Confirme taxas antes de publicar.`;$('kpis').innerHTML=metric('Lucro por venda via Ads',money(r.profit),`CPA ${money(r.cpa)} · ROAS ${Number.isFinite(r.roas)?r.roas.toFixed(2)+'x':'—'}`)+metric('Margem líquida',pct(r.margin),`Meta ${Number(c.targetMargin).toLocaleString('pt-BR')}%`)+metric('CPA máximo',money(r.cpaMax),'Limite antes do prejuízo')+metric('ROAS mínimo',Number.isFinite(r.roasMin)?r.roasMin.toFixed(2)+'x':'—','Ponto de equilíbrio')+metric('Preço ideal',money(ideal),`Ajuste ${money(ideal-c.price)}`)+metric('ACOS atual',pct(r.acos),`Máximo ${pct(r.acosMax)}`)+metric('ROI produto',pct(r.roi),'Lucro ÷ custo do produto')+metric('Taxas da plataforma',money(r.platformTotal),`${c.price?pct(r.platformTotal/c.price):'—'} do preço`)+metric('Sobra antes dos Ads',money(r.beforeAds),'CPA máximo unitário')+metric('Receita após desconto',money(r.net),`Desconto ${c.discount}%`);$('mainStatus').className='status '+d.level;$('mainStatus').textContent=d.level==='good'?'Meta atingida':d.level==='bad'?'Prejuízo':d.level==='warn'?'Atenção':'Aguardando';$('diagnosis').className='diag '+(d.level==='bad'?'badbox':d.level==='warn'?'warnbox':'');$('diagnosis').innerHTML=`<h3>${d.title}</h3><p>${d.text}</p><p><b>Preço ideal:</b> ${money(ideal)}</p><p><b>Ajuste no preço:</b> ${money(ideal-c.price)}</p>`;let rows=[['Preço bruto',r.gross,'#17803d'],['Desconto',r.gross-r.net,'#d32f2f'],['Comissão',r.commission,'#d32f2f'],['Taxa fixa + adicional',(r.fixed||0)+r.service+r.unit,'#d32f2f'],['Imposto',r.tax,'#d32f2f'],['Produto + embalagem + frete',effCost(p,c)+c.packaging+c.freight,'#d32f2f'],['Reserva devoluções',r.returns,'#d32f2f'],['Sobra antes dos Ads',r.beforeAds,'#d69e00'],['CPA / Ads',r.cpa,'#d32f2f'],['Lucro líquido',r.profit,r.profit>=0?'#17803d':'#c52c2c']],max=Math.max(...rows.map(x=>Math.abs(x[1])),1);$('waterfall').innerHTML=rows.map(x=>`<div class="water-row"><span>${x[0]}</span><div class="track"><div class="fill" style="width:${Math.max(2,Math.abs(x[1])/max*100)}%;background:${x[2]}"></div></div><b>${money(x[1])}</b></div>`).join('');renderSaleAccount(p,c,r);renderBusiness(p,c,r);renderScenarios(p,c);renderCatalog()}
 
 function renderBusiness(p,c,r){let unitCost=effCost(p,c),units=unitCost>0?(c.purchaseMode==='units'?Math.floor(c.quantity):Math.floor(c.investment/unitCost)):0,used=units*unitCost,balance=c.purchaseMode==='units'?0:Math.max(0,c.investment-used),adsShare=Math.min(1,c.adsShare/100),mixed=r.beforeAds-r.cpa*adsShare,months=c.monthlySales?units/c.monthlySales:NaN,lotFixed=Number.isFinite(months)?months*c.monthlyFixed:0,lotProfit=units*mixed-lotFixed,roi=used?lotProfit/used:NaN,capital=used+lotProfit,paybackUnits=mixed>0?Math.ceil(used/mixed):NaN;$('purchaseResults').innerHTML=`<div class="result"><span>Unidades compradas</span><b>${units.toLocaleString('pt-BR')}</b></div><div class="result"><span>Capital usado</span><b>${money(used)}</b></div><div class="result"><span>Saldo disponível</span><b>${money(balance)}</b></div><div class="result"><span>Faturamento potencial</span><b>${money(units*r.gross)}</b></div><div class="result"><span>Lucro líquido do lote</span><b>${money(lotProfit)}</b></div><div class="result"><span>ROI do lote</span><b>${pct(roi)}</b></div><div class="result"><span>Capital recuperado</span><b>${money(capital)}</b></div><div class="result"><span>Vendas para payback</span><b>${Number.isFinite(paybackUnits)?paybackUnits:'—'}</b></div>`;let sales=Math.floor(c.monthlySales),revenue=sales*r.gross,adsSpend=sales*r.cpa*adsShare,profitBefore=sales*r.beforeAds-adsSpend,profit=profitBefore-c.monthlyFixed,margin=revenue?profit/revenue:NaN,paybackMonths=profit>0?used/profit:NaN;$('monthlyResults').innerHTML=`<div class="result"><span>Faturamento bruto</span><b>${money(revenue)}</b></div><div class="result"><span>Investimento Ads</span><b>${money(adsSpend)}</b></div><div class="result"><span>Lucro antes dos fixos</span><b>${money(profitBefore)}</b></div><div class="result"><span>Lucro mensal final</span><b>${money(profit)}</b></div><div class="result"><span>Margem mensal</span><b>${pct(margin)}</b></div><div class="result"><span>Payback do estoque</span><b>${Number.isFinite(paybackMonths)?paybackMonths.toFixed(1)+' meses':'—'}</b></div>`}
 

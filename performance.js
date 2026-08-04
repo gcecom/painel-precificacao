@@ -893,8 +893,8 @@ function unitCosts(p,price,plat,snap){
   const ch=Object.assign({},base,{discount:0,cost:0});
   const pp=(snap&&snap.cost!=null)?{cost:money2(snap.cost),channels:p&&p.channels}:p;
   if(typeof calcAt==='function'){
-    const r=calcAt(pp,ch,price);
-    return{comm:r.commission+(ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:(pp&&pp.cost)||0,profit:r.beforeAds,gross:r.gross};
+    const r=calcAt(pp,ch,price,undefined,plat); // canal explícito: regra de taxa por marketplace
+    return{comm:r.commission+(r.fixed||ch.fixedFee||0)+r.service+(r.unit||0),frete:(ch.freight||0)+(ch.packaging||0)+r.returns,tax:r.tax,cost:(pp&&pp.cost)||0,profit:r.beforeAds,gross:r.gross};
   }
   return{comm:0,frete:0,tax:0,cost:(pp&&pp.cost)||0,profit:price-((pp&&pp.cost)||0),gross:price};
 }
