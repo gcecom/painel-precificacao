@@ -737,33 +737,11 @@ function wireAdsSummaryInputs(){
 }
 wireAdsSummaryInputs();
 
-// Soma das despesas (expense_entries) com VENCIMENTO no mês. Serve só de SUGESTÃO para
-// "Gastos gerais do mês": quem vale para Dashboard/Financeiro continua sendo o valor
-// salvo em monthly_expenses — nada é somado duas vezes, porque consolida.js nunca lê
-// expense_entries. Se a tabela ainda não existir, devolve 0 sem quebrar a aba Vendas.
-let monthlyExpensesAuto=0,monthlyExpensesSuggested=false;
-async function sumExpensesOfMonth(u,mo){
-  if(!u||!/^\d{4}-\d{2}$/.test(mo||''))return 0;
-  try{
-    // Busca SEM recorte de período: a regra de recorrência depende do 1º vencimento,
-    // então filtrar por mês no banco perderia as mensais lançadas antes.
-    const rows=await supabaseClient.getExpenses(u);
-    return money2(somarDespesasDoMes(rows,mo));
-  }catch(e){return 0}
-}
-
-// Regra de competência das despesas (pagas, pendentes e vencidas entram igual):
-//   * única   -> conta SÓ no mês do vencimento;
-//   * mensal  -> conta do mês do 1º vencimento em diante, nunca antes;
-//   * cada despesa entra UMA vez por mês (não gera lançamento futuro duplicado).
-function somarDespesasDoMes(rows,mo){
-  return (rows||[]).reduce((a,r)=>{
-    const venc=String(r.due_date||'').slice(0,7);
-    if(!/^\d{4}-\d{2}$/.test(venc))return a;
-    const vale=r.recurrence==='monthly' ? (mo>=venc) : (mo===venc);
-    return vale?a+(+r.amount||0):a;
-  },0);
-}
+// Gastos gerais / despesas NÃO entram mais na aba Vendas: não são exibidos nem descontados
+// do resultado do marketplace (esse é só vendas − taxas − imposto − produto − frete − Ads).
+// As despesas são descontadas apenas em Dashboard, Início e Financeiro (via consolida.js,
+// 1x por mês). O valor salvo em monthly_expenses.amount é PRESERVADO: continua sendo
+// carregado e regravado sem alteração aqui (a aba só grava o DAS, no mesmo registro).
 
 // Busca os lançamentos DAQUELE mês + gastos gerais + resumo Ads (fonte única de ACOS/TACOS).
 // A chave inclui o mês: trocar de mês recarrega em vez de mostrar dado do mês anterior.
@@ -789,17 +767,8 @@ async function ensureMonthlyLoaded(){
   monthlyLoadedFor=key;
   monthlyDirty=false; // acabou de carregar do banco: nada pendente
   monthlySavedAt='';
-  // Sugestão a partir das Despesas: SÓ quando o mês ainda não tem gastos gerais salvos.
-  // Havendo valor salvo (manual ou já confirmado), ele é preservado — nunca sobrescrito.
-  monthlyExpensesAuto=await sumExpensesOfMonth(uid,mo);
-  // #4 — existir a linha já basta: um 0 gravado de propósito é valor manual e deve ser
-  // preservado. Testar ">0" fazia o 0 ser tratado como "nunca preenchido" e a sugestão
-  // sobrescrevia o que o usuário tinha salvo.
-  const temGastoSalvo=!!(exp&&exp.amount!=null);
-  // Preenche como SUGESTÃO — não marca o mês como sujo. Marcar sujo faria a troca de mês
-  // pedir "alterações não salvas" sem o usuário ter mexido em nada.
-  monthlyExpensesSuggested=!temGastoSalvo&&monthlyExpensesAuto>0;
-  if(monthlyExpensesSuggested)monthlyExpenses=monthlyExpensesAuto;
+  // monthlyExpenses guarda o valor salvo em monthly_expenses.amount só para regravá-lo
+  // intacto no "Salvar mês" (a aba não mostra nem edita gastos gerais).
   // rascunho local mais novo que o banco: oferece recuperar o que não foi salvo
   const d=loadDraft();
   if(d&&d.cache){
@@ -1025,9 +994,11 @@ async function saveMonth(){
         if(comSnap)row.snapshot=snapDe(r.p);
         return supabaseClient.upsertMonthlySale(row);
       });
+    // amount = valor salvo carregado, regravado INTACTO (a aba não edita gastos gerais);
+    // preserva monthly_expenses.amount. A aba só altera o DAS deste registro.
     jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0,das:+monthlyDas||0}));
     await Promise.all(jobs);
-    monthlyDirty=false;monthlyExpensesSuggested=false;clearDraft();
+    monthlyDirty=false;clearDraft();
     monthlySavedAt=nowHM();setPersist('saved',monthlySavedAt);
     if(!monthlyMonths.includes(mo)){monthlyMonths.push(mo);monthlyMonths.sort().reverse();renderMonthList()}
     const h=el('monthlyMonthHint');
@@ -1084,8 +1055,6 @@ async function renderMonthly(){
   const _sb=el('monthlySave');if(_sb){_sb.disabled=false;_sb.textContent=monthlyDirty?'Salvar mês •':'Salvar mês'}
   setPersist(monthlyDirty?'dirty':(monthlyMonths.includes(curMonth())?'saved':'none'),monthlySavedAt||'—');
   await loadAdsSummaryForCurrent();
-  if(el('monthlyExpenses').value!==String(monthlyExpenses||''))el('monthlyExpenses').value=monthlyExpenses||'';
-  renderExpensesHint();
   if(el('monthlyDas')&&el('monthlyDas').value!==String(monthlyDas||''))el('monthlyDas').value=monthlyDas||'';
   const _sumForInput=curUserId()?AdsSummary.get(curUserId(),curPlatform(),curMonth()):null;
   const _spendVal=_sumForInput?+_sumForInput.ads_spend||0:0;
@@ -1183,27 +1152,6 @@ function paintMonthlyTable(){
   renderMonthlyKpis(rows);
 }
 
-// Mostra a soma das Despesas do mês e, se divergir do que está no campo, um botão
-// para aplicar. Nunca troca o valor sozinho.
-function renderExpensesHint(){
-  const h=el('monthlyExpensesHint');if(!h)return;
-  const base='Valor único do negócio (vale para todos os marketplaces)';
-  if(!(monthlyExpensesAuto>0)){h.textContent=base;return}
-  const igual=money2(monthlyExpenses)===money2(monthlyExpensesAuto);
-  h.innerHTML=base+' · Despesas do mês: <b>'+fmtMoney(monthlyExpensesAuto)+'</b>'
-    +(monthlyExpensesSuggested?' <i>(sugerido — clique em “Salvar mês” para gravar)</i>':'')
-    +(igual?'':' <button type="button" class="btn small" id="monthlyUseExpenses">usar</button>');
-  const b=el('monthlyUseExpenses');
-  if(b)b.onclick=()=>{
-    monthlyExpenses=monthlyExpensesAuto;
-    el('monthlyExpenses').value=monthlyExpenses||'';
-    renderMonthlyKpis(monthlyRowsData());
-    monthlyExpensesSuggested=false;
-    markMonthlyDirty();
-    renderExpensesHint();
-  };
-}
-
 function monthlyTotals(rows){
   return rows.reduce((a,r)=>({units:a.units+r.units,rev:a.rev+r.rev,comm:a.comm+r.comm,frete:a.frete+r.frete,tax:a.tax+r.tax,cost:a.cost+r.cost,ads:a.ads+r.ads,profit:a.profit+r.profit}),{units:0,rev:0,comm:0,frete:0,tax:0,cost:0,ads:0,profit:0});
 }
@@ -1230,26 +1178,25 @@ function updateMonthly(){
 function renderMonthlyKpis(rows){
   const t=monthlyTotals(rows);
   const sku=rows.filter(r=>r.units>0).length;
-  const gerais=+monthlyExpenses||0;
-  // Lucro operacional = ANTES dos Ads mensais e dos gastos gerais.
-  // t.profit já desconta Ads-por-venda; adicionamos t.ads de volta para obter o operacional.
+  // Resultado do MARKETPLACE = vendas − taxas − imposto − produto − frete − Ads.
+  // Gastos gerais/despesas NÃO entram aqui (só em Dashboard/Início/Financeiro).
+  // t.profit já desconta Ads-por-venda; somamos t.ads de volta para obter o operacional.
   const operational=t.profit+t.ads;
   // ACOS/TACOS e gasto real de Ads vêm do consolidado (mesma fonte da aba Performance)
   const uid=curUserId(),summary=uid?AdsSummary.get(uid,curPlatform(),curMonth()):null;
   const spend=summary?+summary.ads_spend||0:0,revTotal=summary?+summary.revenue_total||0:0,revAds=summary?+summary.revenue_ads||0:0;
-  const liquido=operational-spend-gerais;
+  const liquido=operational-spend;   // após Ads do mês, sem gastos gerais
   const margin=t.rev>0?liquido/t.rev:NaN;
   const acos=calcAcos(spend,revAds),tacos=calcTacos(spend,t.rev>0?t.rev:revTotal);
   el('monthlyKpis').innerHTML=
     kpi('Faturamento do mês',fmtMoney(t.rev),platformName()+' · '+monthLabel(curMonth()))+
     kpi('Gasto total com Ads do mês',fmtMoney(spend),t.rev>0?fmtPct(spend/t.rev)+' do faturamento':'Valor real informado')+
-    kpi('Lucro operacional do marketplace',fmtMoney(operational),'Antes dos Ads mensais e dos gastos gerais')+
-    kpi('Gastos gerais do mês',fmtMoney(gerais),'Valor único do negócio')+
+    kpi('Lucro operacional do marketplace',fmtMoney(operational),'Antes dos Ads mensais')+
     // DAS calculado deste marketplace/mês = soma do imposto das vendas preenchidas.
     // Já está dentro do lucro operacional — exibido, nunca descontado de novo.
     kpi('DAS sobre as vendas',fmtMoney(t.tax),'Faturamento × taxa · '+platformName()+' · '+monthLabel(curMonth()))+
-    kpi('Lucro líquido final',fmtMoney(liquido),liquido>=0?'Operacional − Ads mensais − gastos gerais':'Prejuízo no mês')+
-    kpi('Margem líquida',fmtPct(margin),'Lucro líquido ÷ faturamento')+
+    kpi('Lucro após Ads',fmtMoney(liquido),liquido>=0?'Operacional − Ads do mês':'Prejuízo no mês')+
+    kpi('Margem após Ads',fmtPct(margin),'Lucro após Ads ÷ faturamento')+
     kpi('Unidades vendidas',fmtInt(t.units),`${sku} produto(s) com venda`)+
     kpi('ACOS',fmtPct(acos),spend>0||revAds>0?'Gasto ÷ receita dos Ads':'Preencha na aba Avaliar Anúncio')+
     kpi('TACOS',fmtPct(tacos),spend>0?'Gasto ÷ faturamento total':'—');
@@ -1272,11 +1219,6 @@ el('monthlyMonth').onchange=()=>{
   syncMonthInputs(novo);monthlyLoadedFor=null;renderMonthly();renderAdsSummary();
 };
 el('monthlySave').onclick=()=>saveMonth();
-el('monthlyExpenses').oninput=()=>{
-  monthlyExpenses=el('monthlyExpenses').value===''?0:money2(el('monthlyExpenses').value);
-  const rows=monthlyRowsData();renderMonthlyKpis(rows);
-  monthlyExpensesSuggested=false;markMonthlyDirty();renderExpensesHint();
-};
 if(el('monthlyDas'))el('monthlyDas').oninput=()=>{
   monthlyDas=el('monthlyDas').value===''?0:money2(el('monthlyDas').value);
   markMonthlyDirty();
@@ -1302,7 +1244,7 @@ el('monthlyClear').onclick=async()=>{
   catch(e){alert('Erro ao zerar: '+e.message)}
 };
 // Campos monetários da aba: normaliza o texto exibido ao sair do campo
-['monthlyExpenses','monthlyDas','monthlyAdsSpend','adsSpendInput','revenueTotalInput','revenueAdsInput']
+['monthlyDas','monthlyAdsSpend','adsSpendInput','revenueTotalInput','revenueAdsInput']
   .forEach(id=>{const e=el(id);if(e)e.addEventListener('blur',()=>{
     if(e.value==='')return;const v=money2(e.value);if(String(v)!==e.value)e.value=v;
   })});
