@@ -386,12 +386,13 @@ function fillFilters(){
 // ---------- carga + render ----------
 async function loadRaw(months){
   const u=uid();if(!u)return false;
-  const[sales,ads,exp]=await Promise.all([          // 3 queries no total (nunca 1 por produto)
+  const[sales,ads,exp,ents]=await Promise.all([
     supabaseClient.getMonthlySalesRange(u,months),
     supabaseClient.getAdsSummaryRange(u,months),
-    supabaseClient.getMonthlyExpensesRange(u,months)
+    supabaseClient.getMonthlyExpensesRange(u,months),   // só p/ o memorando de DAS
+    supabaseClient.getExpenses(u).catch(()=>[])          // despesas detalhadas (expense_entries)
   ]);
-  raw={sales:sales||[],ads:ads||[],exp:exp||[]};
+  raw={sales:sales||[],ads:ads||[],exp:exp||[],entries:ents||[]};
   return true;
 }
 
@@ -424,6 +425,13 @@ async function renderDashboard(force){
     // comparação só existe se o período anterior tiver algum dado salvo
     const p=aggregate(prev,fP,fPr,fC);
     aggPrev=p.months.length?p:null;
+    // Gastos gerais pela COMPETÊNCIA (expense_entries) — mesma função da página Despesas/DRE.
+    // Substitui o valor de monthly_expenses no agg (gerais/líquido/margem/expByMonth por mês).
+    const _PD=window.PainelDespesas;
+    if(_PD&&_PD.aplicarCompetencia){
+      _PD.aplicarCompetencia(agg,raw.entries,months);
+      if(aggPrev)_PD.aplicarCompetencia(aggPrev,raw.entries,prev);
+    }
     // estoque: reaproveita o cálculo do módulo Estoque (sem duplicar fórmula)
     stock=null;
     try{

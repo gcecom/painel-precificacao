@@ -32,18 +32,28 @@ async function render(){
   const months=monthsBetween(el('finFrom').value,el('finTo').value);
   if(!months.length){st.textContent='Selecione um período válido.';return}
   st.textContent='Carregando…';
-  let raw;
+  let raw,entries=[];
   try{
-    const[sales,ads,exp]=await Promise.all([
+    const[sales,ads,exp,ents]=await Promise.all([
       supabaseClient.getMonthlySalesRange(uid(),months),
       supabaseClient.getAdsSummaryRange(uid(),months),
-      supabaseClient.getMonthlyExpensesRange(uid(),months)
+      supabaseClient.getMonthlyExpensesRange(uid(),months),   // só p/ o memorando de DAS (monthly_expenses.das)
+      supabaseClient.getExpenses(uid()).catch(()=>[])          // despesas detalhadas (expense_entries)
     ]);
     raw={sales:sales||[],ads:ads||[],exp:exp||[]};
+    entries=ents||[];
   }catch(e){st.textContent='Erro ao carregar: '+e.message;return}
 
   const a=window.PainelConsolida.consolidar(raw,allProducts(),months,{unitCosts:S().unitCosts});
   const t=a.total;
+  // GASTOS GERAIS pelo REGIME DE COMPETÊNCIA, a partir de expense_entries. NÃO soma
+  // monthly_expenses.amount (a.gerais/a.liquido do consolidado são ignorados aqui). O DRE
+  // processa TODOS os meses do período, mesmo sem vendas. Lucro líquido e margem líquida
+  // são recalculados com este total; margem = lucro ÷ receita → "—" quando receita = 0.
+  const PD=window.PainelDespesas;
+  const gerais=(PD&&PD.totalPorCompetencia)?PD.totalPorCompetencia(entries,months).total:0;
+  const liquido=t.operational-a.adsTotal-gerais;
+  const margem=RATIO(liquido,t.rev);
   // DRE: da receita bruta ao lucro líquido, com os mesmos números do Dashboard
   const linhas=[
     ['Receita bruta',t.rev,'',true],
@@ -53,20 +63,22 @@ async function render(){
     ['(−) Custo dos produtos',-t.cost,'neg'],
     ['(=) Lucro operacional',t.operational,t.operational>=0?'pos':'neg',true],
     ['(−) Ads do período',-a.adsTotal,'neg'],
-    ['(−) Gastos gerais',-a.gerais,'neg'],
-    ['(=) Lucro líquido',a.liquido,a.liquido>=0?'pos':'neg',true],
+    ['(−) Gastos gerais (competência)',-gerais,'neg'],
+    ['(=) Lucro líquido',liquido,liquido>=0?'pos':'neg',true],
     // Memorandos: o imposto sobre vendas já está dentro do lucro operacional acima,
     // então nenhum destes entra de novo no lucro (evita dupla contagem).
     ['DAS sobre as vendas (calculado) *',a.dasCalc,''],
     ['DAS informado em Vendas *',a.dasOficial,'']
   ];
   const body=linhas.map(([label,val,cls,strong])=>
-    `<tr${strong?' class="mo-total"':''}><td class="mo-name">${esc(label)}</td><td class="${cls||''}">${fmtMoney(val)}</td></tr>`).join('');
+    // val===0 normaliza -0 → 0 (evita "-R$ 0,00" em linhas zeradas, ex.: Ads sem gasto)
+    `<tr${strong?' class="mo-total"':''}><td class="mo-name">${esc(label)}</td><td class="${cls||''}">${fmtMoney(val===0?0:val)}</td></tr>`).join('');
   tb.innerHTML='<thead><tr><th>Demonstrativo</th><th>'+esc(months.length>1?months[0]+' a '+months[months.length-1]:months[0])+'</th></tr></thead>'
     +'<tbody>'+body+'</tbody>'
-    +`<tfoot><tr class="mo-total"><td>Margem líquida</td><td class="${a.liquido>=0?'pos':'neg'}">${fmtPct(a.margemLiquida)}</td></tr></tfoot>`;
-  const nota=el('finNota');if(nota)nota.innerHTML='* O <b>imposto sobre vendas</b> já está dentro do lucro operacional. O <b>DAS calculado</b> é o faturamento × taxa somado das vendas do período; o <b>DAS informado</b> é o valor digitado em Vendas. Ambos aparecem só para conferência — não são descontados novamente do lucro.';
-  st.textContent=a.months.length?`${a.months.length} mês(es) salvos no período · consolidação única (mesma do Dashboard).`:'Nenhum mês salvo neste período.';
+    +`<tfoot><tr class="mo-total"><td>Margem líquida</td><td class="${liquido>=0?'pos':'neg'}">${fmtPct(margem)}</td></tr></tfoot>`;
+  const nota=el('finNota');if(nota)nota.innerHTML='Os <b>gastos gerais</b> vêm das <b>Despesas</b> (lançamentos detalhados) pelo <b>regime de competência</b>: cada despesa entra na competência do vencimento (única) ou no mês inicial e nos seguintes (mensal), uma vez por mês, em qualquer status. * O <b>imposto sobre vendas</b> já está dentro do lucro operacional; o <b>DAS calculado</b> e o <b>DAS informado</b> aparecem só para conferência — não são descontados de novo.';
+  const temMovimento=a.months.length>0||gerais>0;
+  st.textContent=temMovimento?`${months.length} mês(es) no período · vendas consolidadas + despesas por competência.`:'Sem vendas e sem despesas no período.';
 }
 
 ['finFrom','finTo'].forEach(id=>el(id)&&(el(id).onchange=render));

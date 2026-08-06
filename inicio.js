@@ -205,18 +205,22 @@ async function renderGrafico12(u){
   if(!C||!C.lineChart){box.innerHTML='<p class="help">Gráfico indisponível.</p>';return}
   const meses=ultimos12Meses();
   try{
-    const[sales,ads,exp]=await Promise.all([
+    const[sales,ads,exp,ents]=await Promise.all([
       supabaseClient.getMonthlySalesRange(u,meses),
       supabaseClient.getAdsSummaryRange(u,meses),
-      supabaseClient.getMonthlyExpensesRange(u,meses)
+      supabaseClient.getMonthlyExpensesRange(u,meses),
+      supabaseClient.getExpenses(u).catch(()=>[])
     ]);
     const a=window.PainelConsolida.consolidar({sales:sales||[],ads:ads||[],exp:exp||[]},
       allProducts(),meses,{unitCosts:S().unitCosts});   // todos os marketplaces
-    // Mês sem dado = ZERO (a consolidação só devolve os meses com movimento)
+    // Gastos gerais por COMPETÊNCIA (expense_entries) — mesma função da página Despesas/DRE.
+    const _PD=window.PainelDespesas;
+    if(_PD&&_PD.aplicarCompetencia)_PD.aplicarCompetencia(a,ents||[],meses);
+    // Mês sem venda = faturamento ZERO; o lucro do mês ainda desconta os gastos por competência.
     const fat=meses.map(m=>a.byMonth[m]?a.byMonth[m].rev:0);
     const liq=meses.map(m=>{
-      const b=a.byMonth[m];
-      return b?(b.operational-b.ads-(a.expByMonth[m]||0)):0; // mesma fórmula do Dashboard
+      const b=a.byMonth[m],g=a.expByMonth[m]||0;
+      return b?(b.operational-b.ads-g):-g; // mês sem venda: só os gastos (negativo)
     });
     box.innerHTML=C.lineChart(meses.map(monthLabel),[
       {name:'Faturamento',data:fat},{name:'Lucro líquido',data:liq}
@@ -255,13 +259,17 @@ async function render(){
     if(!mes){if(sub)sub.textContent='Nenhum mês salvo ainda — comece lançando em Vendas.';loading=false;return}
 
     // 3 consultas (mesmo padrão do Dashboard) só para o mês mais recente
-    const[sales,ads,exp]=await Promise.all([
+    const[sales,ads,exp,ents]=await Promise.all([
       supabaseClient.getMonthlySalesRange(u,[mes]),
       supabaseClient.getAdsSummaryRange(u,[mes]),
-      supabaseClient.getMonthlyExpensesRange(u,[mes])
+      supabaseClient.getMonthlyExpensesRange(u,[mes]),
+      supabaseClient.getExpenses(u).catch(()=>[])
     ]);
     const raw={sales:sales||[],ads:ads||[],exp:exp||[]};
     const a=window.PainelConsolida.consolidar(raw,allProducts(),[mes],{unitCosts:S().unitCosts});
+    // Gastos gerais por COMPETÊNCIA (expense_entries) — mesma função da página Despesas/DRE.
+    const _PD=window.PainelDespesas;
+    if(_PD&&_PD.aplicarCompetencia)_PD.aplicarCompetencia(a,ents||[],[mes]);
 
     // estoque: reaproveita o módulo Estoque (sem recalcular fórmula)
     let st=null;

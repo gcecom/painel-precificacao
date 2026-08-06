@@ -112,5 +112,39 @@ function consolidar(raw, products, months, opts){
   };
 }
 
-window.PainelConsolida={consolidar,RATIO};
+// ---------- Despesas por COMPETÊNCIA (regime de competência) ----------
+// Fonte: expense_entries (cada despesa individual). NÃO usa monthly_expenses.
+//  - única  (recurrence !== 'monthly'): entra só no mês do vencimento (due_date);
+//  - mensal (recurrence === 'monthly'):  entra no mês do 1º vencimento e em TODOS os
+//    meses seguintes, uma vez por competência;
+//  - inclui qualquer status (paga, pendente ou vencida — "vencida" é derivada de pending);
+//  - respeita término/cancelamento SE existir no registro (end_date / ends_at /
+//    canceled_at / cancelled_at → última competência em que a despesa conta);
+//  - não cria registros futuros: soma apenas dentro dos `months` pedidos.
+// Retorna { total, byMonth:{'YYYY-MM':valor}, months:[...] }.
+function despesasPorCompetencia(entries, months){
+  const ym=d=>(typeof d==='string'&&/^\d{4}-\d{2}/.test(d))?d.slice(0,7):'';
+  const list=(months||[]).filter(m=>/^\d{4}-\d{2}$/.test(m)).slice().sort();
+  const byMonth={};list.forEach(m=>{byMonth[m]=0});
+  (entries||[]).forEach(e=>{
+    if(!e)return;
+    const amount=+e.amount||0;if(!(amount>0))return;
+    const start=ym(e.due_date);if(!/^\d{4}-\d{2}$/.test(start))return;
+    const monthly=e.recurrence==='monthly';
+    const end=ym(e.end_date||e.ends_at||e.canceled_at||e.cancelled_at||''); // '' quando não existe
+    list.forEach(m=>{
+      if(monthly){
+        if(m<start)return;      // antes do início
+        if(end&&m>end)return;   // depois do término/cancelamento
+        byMonth[m]+=amount;     // uma vez por competência
+      }else if(m===start){      // única: só na competência do vencimento
+        byMonth[m]+=amount;
+      }
+    });
+  });
+  let total=0;list.forEach(m=>{total+=byMonth[m]});
+  return{total,byMonth,months:list};
+}
+
+window.PainelConsolida={consolidar,RATIO,despesasPorCompetencia};
 })();

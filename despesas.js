@@ -31,9 +31,78 @@ const hojeISO=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth(
 const brData=s=>/^\d{4}-\d{2}-\d{2}$/.test(s||'')?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'—';
 // "Vencida" é DERIVADO (pendente + vencimento no passado) — não é status no banco
 const vencida=d=>d.status==='pending'&&d.due_date<hojeISO();
-const situacao=d=>d.status==='paid'?'paid':(vencida(d)?'overdue':'pending');
-const ROTULO={paid:'Paga',pending:'Pendente',overdue:'Vencida'};
-const CLASSE={paid:'good',pending:'warn',overdue:'bad'};
+// Ocorrências virtuais (previsto=true) nunca herdam "pago": futuras = "Prevista", já passadas = "Recorrente"
+const situacao=d=>d.previsto?(d.due_date>hojeISO()?'previsto':'recorrente'):(d.status==='paid'?'paid':(vencida(d)?'overdue':'pending'));
+const ROTULO={paid:'Paga',pending:'Pendente',overdue:'Vencida',previsto:'Prevista',recorrente:'Recorrente'};
+const CLASSE={paid:'good',pending:'warn',overdue:'bad',previsto:'neutral',recorrente:'neutral'};
+const ymOf=s=>/^\d{4}-\d{2}/.test(s||'')?s.slice(0,7):'';
+const mesAtualYM=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)};
+function mesesEntre(de,ate){
+  if(!/^\d{4}-\d{2}$/.test(de||'')||!/^\d{4}-\d{2}$/.test(ate||''))return[];
+  if(de>ate){const t=de;de=ate;ate=t}
+  const out=[];let[y,m]=de.split('-').map(Number);const[ey,em]=ate.split('-').map(Number);
+  for(let i=0;i<600;i++){out.push(y+'-'+pad(m));if(y===ey&&m===em)break;m++;if(m>12){m=1;y++}}
+  return out;
+}
+// data da ocorrência: mesmo dia do vencimento; se o dia não existir no mês, usa o último dia
+function dataNaCompetencia(m,dia){const[y,mo]=m.split('-').map(Number);const ult=new Date(y,mo,0).getDate();return m+'-'+pad(Math.min(dia,ult))}
+
+// ---------- OCORRÊNCIAS VIRTUAIS POR COMPETÊNCIA (regime de competência) ----------
+// Materializa cada despesa em UMA ocorrência por mês, SEM gravar nada no banco. Função
+// ÚNICA usada pela página Despesas (filtros/totais), pelo Dashboard/Início e pelo DRE.
+//  - única  (recurrence !== 'monthly'): só na competência do vencimento;
+//  - mensal (recurrence === 'monthly'): competência inicial e TODAS as seguintes (sem
+//    data final = recorrência indefinida);
+//  - respeita término/cancelamento SE existir (end_date/ends_at/canceled_at/cancelled_at);
+//  - repete no mesmo dia; se o dia não existir no mês, usa o último dia do mês;
+//  - uma ocorrência por despesa/mês (occ_id = id@competência) — sem duplicidade;
+//  - paid_at e status "pago" valem SÓ na competência de origem; as demais são
+//    recorrentes/previstas (previsto=true) e nunca herdam a data de pagamento de janeiro.
+function ocorrencias(entries, months){
+  const list=(months||[]).filter(m=>/^\d{4}-\d{2}$/.test(m)).slice().sort();
+  const out=[];
+  (entries||[]).forEach(e=>{
+    if(!e)return;
+    const amount=+e.amount||0;if(!(amount>0))return;
+    const dd=e.due_date;if(!/^\d{4}-\d{2}-\d{2}$/.test(dd||''))return;
+    const start=dd.slice(0,7),dia=+dd.slice(8,10);
+    const monthly=e.recurrence==='monthly';
+    const fim=ymOf(e.end_date||e.ends_at||e.canceled_at||e.cancelled_at||''); // '' = indefinida
+    list.forEach(m=>{
+      if(monthly){ if(m<start)return; if(fim&&m>fim)return; }
+      else if(m!==start){ return; }
+      const origem=(m===start);
+      out.push(Object.assign({},e,{
+        occ_id:e.id+'@'+m, occ_month:m,
+        due_date:dataNaCompetencia(m,dia),          // vira a data da competência (o resto lê due_date)
+        is_origin:origem, previsto:!origem,
+        status:origem?(e.status||'pending'):'pending',  // não propaga "pago" aos meses seguintes
+        paid_at:origem?(e.paid_at||null):null           // nem a data de pagamento
+      }));
+    });
+  });
+  return out;
+}
+// Total por competência (usado por Financeiro/Dashboard/Início) — mesma base de ocorrências.
+function totalPorCompetencia(entries, months){
+  const occ=ocorrencias(entries,months),byMonth={};
+  (months||[]).forEach(m=>{byMonth[m]=0});
+  occ.forEach(o=>{byMonth[o.occ_month]=(byMonth[o.occ_month]||0)+(+o.amount||0)});
+  let total=0;for(const m in byMonth)total+=byMonth[m];
+  return{total,byMonth,ocorrencias:occ};
+}
+// Substitui os gastos gerais de um `agg` da consolidação pelos da competência (expense_entries),
+// recalculando líquido e margem. Não soma monthly_expenses. Respeita o filtro (gastos do negócio).
+function aplicarCompetencia(agg, entries, months){
+  if(!agg||!agg.total)return agg;
+  const r=totalPorCompetencia(entries,months);
+  agg.expByMonth=r.byMonth;
+  agg.gerais=r.total;
+  agg.geraisAplicado=agg.filtered?0:r.total;
+  agg.liquido=agg.total.operational-agg.adsTotal-agg.geraisAplicado;
+  agg.margemLiquida=agg.total.rev>0?agg.liquido/agg.total.rev:NaN;
+  return agg;
+}
 
 function msg(txt,kind){
   const e=el('dpMsg');if(!e)return;
@@ -68,12 +137,18 @@ function filtros(){
 }
 function filtrar(){
   const f=filtros();
-  return lista().filter(d=>{
+  // Janela de competências a materializar: usa o período do filtro; sem período, do 1º
+  // vencimento cadastrado até o mês atual (recorrências mensais aparecem em cada mês).
+  const starts=lista().map(d=>ymOf(d.due_date)).filter(Boolean).sort();
+  const de=f.de?ymOf(f.de):(starts[0]||mesAtualYM());
+  const ate=f.ate?ymOf(f.ate):mesAtualYM();
+  const months=mesesEntre(de,ate<de?de:ate);
+  return ocorrencias(lista(),months).filter(d=>{   // d.due_date já é a data da competência
     if(f.q&&!String(d.description||'').toLowerCase().includes(f.q))return false;
-    if(f.de&&d.due_date<f.de)return false;      // período usa o VENCIMENTO
+    if(f.de&&d.due_date<f.de)return false;      // período usa a data da OCORRÊNCIA
     if(f.ate&&d.due_date>f.ate)return false;
     if(f.cat&&d.category!==f.cat)return false;
-    if(f.st&&situacao(d)!==f.st)return false;   // "overdue" é derivado
+    if(f.st&&situacao(d)!==f.st)return false;   // "overdue"/"previsto"/"recorrente" são derivados
     return true;
   }).sort((a,b)=>b.due_date.localeCompare(a.due_date));
 }
@@ -112,15 +187,17 @@ function preencherSelects(){
 // ---------- cards (respeitam os filtros) ----------
 function renderKpis(rows){
   const tot=rows.reduce((a,d)=>a+(+d.amount||0),0);
-  const pago=rows.filter(d=>d.status==='paid').reduce((a,d)=>a+(+d.amount||0),0);
+  const pago=rows.filter(d=>!d.previsto&&d.status==='paid').reduce((a,d)=>a+(+d.amount||0),0);
   const pend=rows.filter(d=>situacao(d)==='pending').reduce((a,d)=>a+(+d.amount||0),0);
   const venc=rows.filter(d=>situacao(d)==='overdue').reduce((a,d)=>a+(+d.amount||0),0);
+  const prev=rows.filter(d=>d.previsto).reduce((a,d)=>a+(+d.amount||0),0); // recorrentes/previstas
   el('dpKpis').innerHTML=
-    kpi('Total de despesas',fmtMoney(tot),'Filtros aplicados')+
-    kpi('Total pago',fmtMoney(pago),rows.filter(d=>d.status==='paid').length+' lançamento(s)')+
+    kpi('Total de despesas',fmtMoney(tot),'Competência (inclui recorrentes)')+
+    kpi('Total pago',fmtMoney(pago),rows.filter(d=>!d.previsto&&d.status==='paid').length+' lançamento(s)')+
     kpi('Total pendente',fmtMoney(pend),'Dentro do prazo')+
     kpi('Total vencido',fmtMoney(venc),venc>0?'Regularizar':'Nada vencido')+
-    kpi('Quantidade',String(rows.length),'Despesas no filtro');
+    kpi('Recorrentes / previstas',fmtMoney(prev),rows.filter(d=>d.previsto).length+' ocorrência(s)')+
+    kpi('Quantidade',String(rows.length),'Ocorrências no filtro');
 }
 
 // ---------- listagem: tabela no desktop, cartões no celular ----------
@@ -149,7 +226,7 @@ function renderLista(rows){
       <td>${brData(d.due_date)}</td>
       <td><span class="status ${CLASSE[s]}">${ROTULO[s]}</span>${d.status==='paid'&&d.paid_at?`<small class="dp-note">em ${brData(d.paid_at)}</small>`:''}</td>
       <td>${rec(d)}</td>
-      <td class="dp-acts"><button class="btn small" data-edit="${d.id}">Editar</button><button class="btn small danger" data-del="${d.id}">Excluir</button></td>
+      <td class="dp-acts">${d.previsto?'<span class="status neutral">Recorrente</span>':`<button class="btn small" data-edit="${d.id}">Editar</button><button class="btn small danger" data-del="${d.id}">Excluir</button>`}</td>
     </tr>`}).join('')+'</tbody>';
   cards.innerHTML=rows.map(d=>{const s=situacao(d);return`<article class="dp-card ${s}">
       <div class="dp-card-top"><b>${esc(d.description)}</b><span class="status ${CLASSE[s]}">${ROTULO[s]}</span></div>
@@ -157,7 +234,7 @@ function renderLista(rows){
       <div class="dp-card-meta"><span>${esc(d.category)}</span><span>Vence ${brData(d.due_date)}</span><span>${rec(d)}</span></div>
       ${d.status==='paid'&&d.paid_at?`<div class="dp-card-meta"><span>Pago em ${brData(d.paid_at)}</span></div>`:''}
       ${d.notes?`<p class="help">${esc(d.notes)}</p>`:''}
-      <div class="dp-acts"><button class="btn small" data-edit="${d.id}">Editar</button><button class="btn small danger" data-del="${d.id}">Excluir</button></div>
+      <div class="dp-acts">${d.previsto?'<span class="status neutral">Recorrente / prevista</span>':`<button class="btn small" data-edit="${d.id}">Editar</button><button class="btn small danger" data-del="${d.id}">Excluir</button>`}</div>
     </article>`}).join('');
   tb.querySelectorAll('.mo-sort').forEach(b=>b.onclick=()=>{
     const k=b.dataset.sort;
@@ -332,5 +409,7 @@ window.renderDespesas=render;
 window.resetDespesas=()=>{itens=[];carregado=false;editandoId='';};
 // exposto para teste e para a futura integração com o Financeiro
 window.PainelDespesas={itens:()=>lista(),filtrar,situacao,ordenar,ordemAtual:()=>({...ordem}),
+  // Função ÚNICA de competência, compartilhada com Financeiro/DRE, Dashboard e Início
+  ocorrencias,totalPorCompetencia,aplicarCompetencia,
   totalPorMes(){const m={};lista().forEach(d=>{const k=(d.due_date||'').slice(0,7);if(k)m[k]=(m[k]||0)+(+d.amount||0)});return m}};
 })();
