@@ -100,9 +100,7 @@
 </div></aside>
 
 <div class="content">
-<div class="overview"><h2>Resumo executivo</h2><p>Valores atualizados em tempo real conforme produto, plataforma, taxas, Ads e volume.</p></div>
-<section class="panel"><div class="panel-head"><h2>Resultado da precificação</h2><span class="status neutral">Atualiza em tempo real</span></div><div class="panel-body"><div class="results" id="pricingSummary"></div></div></section>
-<section class="kpis" id="kpis"></section>
+<div class="overview"><h2>Resumo executivo</h2><p>Valores atualizados em tempo real conforme produto, plataforma, taxas, Ads e volume.</p></div><section class="kpis" id="kpis"></section>
 <section class="panel sale-account"><h2>A conta de uma venda</h2><p class="help">Comece pela receita após o desconto e subtraia cada grupo de custos.</p><div class="sale-equation" id="saleEquation"></div><div class="sale-stack" id="saleStack"></div><div class="sale-legend" id="saleLegend"></div><p class="sale-caption" id="saleCaption"></p></section>
 <section class="panel"><div class="panel-head"><h2>Diagnóstico do produto</h2><span class="status neutral" id="mainStatus">Aguardando dados</span></div><div class="panel-body summary-grid"><div class="waterfall" id="waterfall"></div><div class="diag warnbox" id="diagnosis"></div></div></section>
 <section class="panel"><div class="panel-head"><h2>Simulação de compra, estoque e resultado mensal</h2><span class="status neutral">Planejamento financeiro</span></div><div class="panel-body business">
@@ -110,6 +108,7 @@
 <article class="sim-card"><h3>Projeção mensal</h3><p>Separe vendas orgânicas e vendas atribuídas à publicidade.</p><div class="fields"><div class="field"><label>Vendas mensais</label><input id="monthlySales" type="number" min="0" step="1"></div><div class="field"><label>Vendas via Ads (%)</label><input id="adsShare" type="number" min="0" max="100" step="1"></div><div class="field full"><label>Custos fixos mensais (R$)</label><input id="monthlyFixed" type="number" min="0" step="0.01"></div></div><div class="results" id="monthlyResults"></div></article>
 </div></section>
 <section class="panel"><div class="panel-head"><h2>Planilha de ROAS desejado e preço ideal</h2><span class="status neutral">Atualização instantânea</span></div><div class="panel-body"><div class="scenario-controls"><div class="field"><label>ROAS inicial</label><input id="roasStart" type="number" min=".1" step=".1" value="3"></div><div class="field"><label>ROAS final</label><input id="roasEnd" type="number" min=".1" step=".1" value="30"></div><div class="field"><label>Intervalo</label><input id="roasStep" type="number" min=".1" step=".1" value="2.5"></div><button class="btn brand" id="updateScenarios">Atualizar cenários</button></div><div class="chips"><button class="chip" data-roas="5">ROAS 5</button><button class="chip" data-roas="10">ROAS 10</button><button class="chip" data-roas="20">ROAS 20</button><button class="chip" data-roas="30">ROAS 30</button><button class="chip" id="exportRoas">Exportar planilha CSV</button></div><div class="table-wrap"><table><thead><tr><th>Cenário</th><th>CPA</th><th>ACOS</th><th>Lucro/venda</th><th>Margem</th><th>ROI produto</th><th>Preço ideal</th><th>Ajuste</th><th>ROAS mínimo</th><th>Diagnóstico</th></tr></thead><tbody id="scenarioBody"></tbody></table></div></div></section>
+<section class="panel"><div class="panel-head"><h2>Resultado da precificação</h2><span class="status neutral">Atualiza em tempo real</span></div><div class="panel-body"><div class="results" id="pricingSummary"></div></div></section>
 
 </div></section>
 
