@@ -330,9 +330,10 @@ function renderKpis(a){
     kpi('Custo dos produtos vendidos',fmtMoney(t.cost),sub('CMV do período',t.cost,P&&P.total.cost))+
     // DAS CALCULADO sobre as vendas (faturamento x taxa), somado de todos os marketplaces
     // e meses do período. Já embutido no lucro operacional → aqui é só exibição, nunca
-    // descontado de novo. O valor manual informado em Vendas fica como memorando.
-    kpi('DAS sobre as vendas',fmtMoney(a.dasCalc),sub('Faturamento × taxa · todos os marketplaces do período',a.dasCalc,P&&P.dasCalc))+
-    kpi('DAS informado em Vendas',fmtMoney(a.dasOficial),'Memorando — não descontado 2x (imposto já no operacional)')+
+    // descontado de novo. O DAS PAGO é o valor informado no painel acima (por mês); os dois
+    // ficam lado a lado para conferência (calculado × pago).
+    kpi('DAS calculado (vendas)',fmtMoney(a.dasCalc),sub('Faturamento × taxa · todos os marketplaces do período',a.dasCalc,P&&P.dasCalc))+
+    kpi('DAS pago no mês',fmtMoney(a.dasOficial),'Informado no painel acima — memorando, não descontado 2x (imposto já no operacional)')+
     kpi('Valor atual do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra a aba Estoque')+
     kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade':'Abra a aba Estoque')+
     kpi('Produtos com estoque baixo',st?fmtInt(st.low):'—',st?(st.out?fmtInt(st.out)+' sem estoque':'Nenhum sem estoque'):'Abra a aba Estoque');
@@ -430,6 +431,10 @@ async function renderDashboard(force){
         if(typeof window.stockSnapshot==='function'){const sn=window.stockSnapshot();if(sn&&sn.loaded)stock=sn}}
     }catch(e){console.warn('Estoque indisponível no dashboard:',e.message)}
     renderKpis(agg);renderCharts(agg);renderAlerts(agg);renderInsights(agg);renderTables(agg);
+    // DAS pago no mês: default = mês mais recente do período; prefill do valor salvo.
+    const _dm=el('dashDasMonth');
+    if(_dm&&!_dm.value)_dm.value=(agg.months&&agg.months.length?agg.months[agg.months.length-1]:el('dashTo').value)||'';
+    dashDasPrefill();
     st.textContent=agg.months.length
       ? `${agg.months.length} mês(es) salvos no período · atualizado agora`
       : 'Nenhum mês salvo neste período. Lance e salve dados na aba Resultado Mensal.';
@@ -443,19 +448,74 @@ async function renderDashboard(force){
 function exportCsv(){
   if(!agg){alert('Nada para exportar ainda.');return}
   // "Imposto (venda)" = imposto embutido no lucro operacional (estimado por venda).
-  // "DAS pago" (linha de total) = valor oficial informado em Vendas, 1x por mês.
+  // "DAS pago" (linha de total) = valor informado no painel do Dashboard, 1x por mês.
   const rows=[['Bloco','Chave','Faturamento','Unidades','Custo','Ads','Imposto (venda)','Lucro','Margem %']];
   Object.entries(agg.byPlat).forEach(([k,v])=>{const l=v.operational-v.ads;rows.push(['Marketplace',platformName(k),v.rev,v.units,v.cost,v.ads,v.tax,l,Number.isFinite(RATIO(l,v.rev))?RATIO(l,v.rev)*100:''])});
   Object.entries(agg.byProd).forEach(([,v])=>{const l=v.operational-v.ads;rows.push(['Produto',v.name,v.rev,v.units,v.cost,v.ads,v.tax,l,Number.isFinite(RATIO(l,v.rev))?RATIO(l,v.rev)*100:''])});
   agg.months.forEach(m=>{const b=agg.byMonth[m],l=b.operational-b.ads-(agg.expByMonth[m]||0);rows.push(['Mês',m,b.rev,b.units,b.cost,b.ads,b.tax,l,Number.isFinite(RATIO(l,b.rev))?RATIO(l,b.rev)*100:''])});
   rows.push(['Total','Consolidado',agg.total.rev,agg.total.units,agg.total.cost,agg.adsTotal,agg.total.tax,agg.liquido,Number.isFinite(agg.margemLiquida)?agg.margemLiquida*100:'']);
-  rows.push(['Total','DAS sobre as vendas (calculado)','','','','','',agg.dasCalc,'']);
-  rows.push(['Total','DAS informado em Vendas (memorando)','','','','','',agg.dasOficial,'']);
+  rows.push(['Total','DAS calculado das vendas','','','','','',agg.dasCalc,'']);
+  rows.push(['Total','DAS pago no mês (memorando)','','','','','',agg.dasOficial,'']);
   rows.push(['Total','Gastos gerais (1x por mês)','','','','','',agg.gerais,'']);
   const csv=rows.map(r=>r.map(v=>`"${String(typeof v==='number'?(Number.isFinite(v)?v:''):v).replaceAll('"','""')}"`).join(';')).join('\n');
   const name=`dashboard-${el('dashFrom').value}_a_${el('dashTo').value}.csv`;
   if(typeof download==='function')download(name,csv,'text/csv;charset=utf-8');
 }
+
+// ---------- DAS pago no mês (editado AQUI, no Dashboard; global por usuário+mês) ----------
+// monthly_expenses.das = valor único do mês, somando todos os marketplaces. O imposto sobre
+// vendas já está no lucro operacional (dasCalc); por isso o DAS pago é só memorando/conferência
+// e NUNCA é descontado de novo do lucro (ver consolida.js — liquido não subtrai dasOficial).
+// Salva com upsert (user_id, month) enviando SÓ `das`: com merge-duplicates o PostgREST
+// atualiza apenas essa coluna, preservando monthly_expenses.amount (gastos gerais) e o DAS
+// dos demais meses.
+async function dashDasPrefill(){
+  const u=uid(),mi=el('dashDasMonth');if(!u||!mi)return;
+  const mo=mi.value;
+  if(!/^\d{4}-\d{2}$/.test(mo)){const h=el('dashDasHint');if(h)h.textContent='';return}
+  let saved=0;
+  try{const row=await supabaseClient.getMonthlyExpenses(u,mo);saved=row&&row.das!=null?+row.das:0}catch(e){}
+  const inp=el('dashDasPaid');
+  if(inp&&document.activeElement!==inp)inp.value=saved>0?saved:'';
+  dashDasRenderHint(mo,saved);
+}
+// Conferência: DAS calculado das vendas do mês (agg.byMonth[m].tax) × DAS pago informado.
+function dashDasRenderHint(mo,saved){
+  const h=el('dashDasHint');if(!h)return;
+  const pago=+saved||0;
+  const period=monthsBetween(el('dashFrom').value,el('dashTo').value);
+  const inRange=period.includes(mo);
+  if(!inRange){
+    h.innerHTML='DAS pago salvo: <b>'+fmtMoney(pago)+'</b>. Inclua <b>'+esc(monthLabel(mo))+'</b> no período acima para comparar com o DAS calculado das vendas.';
+    return;
+  }
+  const calc=agg&&agg.byMonth&&agg.byMonth[mo]?+agg.byMonth[mo].tax||0:0; // sem venda no mês => 0
+  const dif=pago-calc;
+  h.innerHTML='DAS calculado das vendas de <b>'+esc(monthLabel(mo))+'</b>: <b>'+fmtMoney(calc)
+    +'</b> · DAS pago informado: <b>'+fmtMoney(pago)+'</b> · diferença: <b>'+fmtMoney(dif)
+    +'</b>. Memorando — não descontado 2x (o imposto já está no lucro operacional).';
+}
+async function dashDasSave(){
+  const u=uid();if(!u){alert('Faça login para salvar.');return}
+  const mi=el('dashDasMonth'),mo=mi?mi.value:'';
+  if(!/^\d{4}-\d{2}$/.test(mo)){alert('Selecione o mês do DAS.');return}
+  const inp=el('dashDasPaid');
+  const val=inp&&inp.value!==''?(typeof money2==='function'?money2(inp.value):Math.max(0,+inp.value||0)):0;
+  const btn=el('dashDasSave'),prev=btn?btn.textContent:'Salvar DAS';
+  if(btn){btn.disabled=true;btn.textContent='Salvando…'}
+  try{
+    await supabaseClient.upsertMonthlyExpenses({user_id:u,month:mo,das:val});
+    await renderDashboard(true);           // KPIs "DAS pago" e a tabela mensal já refletem
+    await dashDasPrefill();
+    if(btn){btn.textContent='Salvo';setTimeout(()=>{const b=el('dashDasSave');if(b)b.textContent=prev},1500)}
+  }catch(e){
+    alert('Não foi possível salvar o DAS:\n\n'+e.message);
+    if(btn)btn.textContent=prev;
+  }finally{const b=el('dashDasSave');if(b)b.disabled=false}
+}
+if(el('dashDasMonth'))el('dashDasMonth').onchange=()=>dashDasPrefill();
+if(el('dashDasPaid'))el('dashDasPaid').addEventListener('blur',()=>{const e=el('dashDasPaid');if(e.value===''||typeof money2!=='function')return;const v=money2(e.value);if(String(v)!==e.value)e.value=v});
+if(el('dashDasSave'))el('dashDasSave').onclick=()=>dashDasSave();
 
 // ---------- eventos ----------
 ['dashFrom','dashTo'].forEach(id=>el(id)&&(el(id).onchange=()=>renderDashboard(true)));

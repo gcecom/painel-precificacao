@@ -21,6 +21,9 @@ html,body{max-width:100%;overflow-x:hidden}
 .table-wrap{-webkit-overflow-scrolling:touch}
 button,.btn,.chip{min-height:38px}
 .field input,.field select,.form-group input{min-height:40px;font-size:16px}
+/* Rótulo com checkbox inline (toggles de marketplace: Campanha de Destaque, Ads Fácil, Parcelamento) */
+.field label.chk{display:flex;align-items:center;gap:8px;margin-bottom:0;min-height:40px;cursor:pointer;text-transform:none;font-size:12px;font-weight:700}
+.field label.chk input{width:auto;min-height:0;flex:0 0 auto;margin:0}
 .monthly-toolbar{gap:12px}
 .monthly-toolbar .field{max-width:100%;flex:1 1 220px}
 .monthly-actions{width:auto}

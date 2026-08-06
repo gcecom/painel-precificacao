@@ -633,9 +633,9 @@ const AdsSummary = (function(){
 function calcAcos(spend,revAds){return revAds>0?spend/revAds:NaN}
 function calcTacos(spend,revTotal){return revTotal>0?spend/revTotal:NaN}
 
-let monthlyCache={},monthlyExpenses=0,monthlyDas=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false,monthlySavedAt='';
+let monthlyCache={},monthlyExpenses=0,monthlyLoadedFor=null,monthlyMonths=[],monthlyDirty=false,monthlySavedAt='';
 // performance.js roda numa IIFE; expõe um hook para app.js limpar o cache ao trocar de sessão
-window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyDas=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;try{if(typeof window.resetStock==='function')window.resetStock()}catch(e){}AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
+window.resetMonthlyCache=()=>{monthlyCache={};monthlyExpenses=0;monthlyLoadedFor=null;monthlyMonths=[];monthlyDirty=false;try{if(typeof window.resetStock==='function')window.resetStock()}catch(e){}AdsSummary.reset();resetPerformanceState();if(typeof window.resetDashboard==='function')window.resetDashboard();renderAdsSummary()};
 
 const thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')};
 // "2026-06" -> "06/2026", para exibição
@@ -737,11 +737,13 @@ function wireAdsSummaryInputs(){
 }
 wireAdsSummaryInputs();
 
-// Gastos gerais / despesas NÃO entram mais na aba Vendas: não são exibidos nem descontados
-// do resultado do marketplace (esse é só vendas − taxas − imposto − produto − frete − Ads).
-// As despesas são descontadas apenas em Dashboard, Início e Financeiro (via consolida.js,
-// 1x por mês). O valor salvo em monthly_expenses.amount é PRESERVADO: continua sendo
-// carregado e regravado sem alteração aqui (a aba só grava o DAS, no mesmo registro).
+// Gastos gerais / despesas / DAS pago NÃO entram na aba Vendas: não são exibidos nem
+// descontados do resultado do marketplace (esse é só vendas − taxas − imposto − produto −
+// frete − Ads). As despesas são descontadas apenas em Dashboard, Início e Financeiro (via
+// consolida.js, 1x por mês). O "DAS pago no mês" passou a ser editado no Dashboard Geral.
+// O valor salvo em monthly_expenses.amount é PRESERVADO: continua sendo carregado e
+// regravado sem alteração aqui. Já a coluna monthly_expenses.das NÃO é tocada por esta
+// aba (o upsert do "Salvar mês" omite `das`), preservando o DAS informado no Dashboard.
 
 // Busca os lançamentos DAQUELE mês + gastos gerais + resumo Ads (fonte única de ACOS/TACOS).
 // A chave inclui o mês: trocar de mês recarrega em vez de mostrar dado do mês anterior.
@@ -762,7 +764,6 @@ async function ensureMonthlyLoaded(){
   // usuário salvar o mês de novo (sem migração em massa).
   (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:units0(r.units),price:money2(r.price),ads:r.ads_unit}});
   monthlyExpenses=exp&&exp.amount!=null?+exp.amount:0;
-  monthlyDas=exp&&exp.das!=null?+exp.das:0; // DAS pago no mês (oficial, 1x por mês)
   monthlyMonths=months||[];
   monthlyLoadedFor=key;
   monthlyDirty=false; // acabou de carregar do banco: nada pendente
@@ -772,9 +773,9 @@ async function ensureMonthlyLoaded(){
   // rascunho local mais novo que o banco: oferece recuperar o que não foi salvo
   const d=loadDraft();
   if(d&&d.cache){
-    const diff=JSON.stringify(d.cache)!==JSON.stringify(monthlyCache)||(+d.exp||0)!==(+monthlyExpenses||0)||(+d.das||0)!==(+monthlyDas||0);
+    const diff=JSON.stringify(d.cache)!==JSON.stringify(monthlyCache)||(+d.exp||0)!==(+monthlyExpenses||0);
     if(diff&&confirm('Há alterações não salvas deste mês guardadas neste navegador.\n\nRecuperar os valores não salvos?')){
-      monthlyCache=d.cache;monthlyExpenses=+d.exp||0;monthlyDas=+d.das||0;monthlyDirty=true;
+      monthlyCache=d.cache;monthlyExpenses=+d.exp||0;monthlyDirty=true;
     }else if(!diff){clearDraft()}
     else{clearDraft()}
   }
@@ -947,7 +948,7 @@ function nowHM(){const d=new Date();return String(d.getHours()).padStart(2,'0')+
 // NÃO substitui o Supabase — é só um cache do que está na tela.
 function draftKey(){return'painel_draft_'+(curUserId()||'anon')+'_'+curPlatform()+'_'+curMonth()}
 function saveDraft(){
-  try{localStorage.setItem(draftKey(),JSON.stringify({cache:monthlyCache,exp:monthlyExpenses,das:monthlyDas,at:Date.now()}))}catch(e){}
+  try{localStorage.setItem(draftKey(),JSON.stringify({cache:monthlyCache,exp:monthlyExpenses,at:Date.now()}))}catch(e){}
 }
 function loadDraft(){
   try{
@@ -995,8 +996,10 @@ async function saveMonth(){
         return supabaseClient.upsertMonthlySale(row);
       });
     // amount = valor salvo carregado, regravado INTACTO (a aba não edita gastos gerais);
-    // preserva monthly_expenses.amount. A aba só altera o DAS deste registro.
-    jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0,das:+monthlyDas||0}));
+    // preserva monthly_expenses.amount. O `das` é OMITIDO de propósito: com merge-duplicates
+    // o PostgREST só atualiza as colunas enviadas, então o DAS pago (editado no Dashboard)
+    // fica preservado — salvar o mês aqui nunca altera nem zera o DAS já informado.
+    jobs.push(supabaseClient.upsertMonthlyExpenses({user_id:uid,month:mo,amount:+monthlyExpenses||0}));
     await Promise.all(jobs);
     monthlyDirty=false;clearDraft();
     monthlySavedAt=nowHM();setPersist('saved',monthlySavedAt);
@@ -1055,7 +1058,6 @@ async function renderMonthly(){
   const _sb=el('monthlySave');if(_sb){_sb.disabled=false;_sb.textContent=monthlyDirty?'Salvar mês •':'Salvar mês'}
   setPersist(monthlyDirty?'dirty':(monthlyMonths.includes(curMonth())?'saved':'none'),monthlySavedAt||'—');
   await loadAdsSummaryForCurrent();
-  if(el('monthlyDas')&&el('monthlyDas').value!==String(monthlyDas||''))el('monthlyDas').value=monthlyDas||'';
   const _sumForInput=curUserId()?AdsSummary.get(curUserId(),curPlatform(),curMonth()):null;
   const _spendVal=_sumForInput?+_sumForInput.ads_spend||0:0;
   if(el('monthlyAdsSpend').value!==String(_spendVal||''))el('monthlyAdsSpend').value=_spendVal||'';
@@ -1219,10 +1221,6 @@ el('monthlyMonth').onchange=()=>{
   syncMonthInputs(novo);monthlyLoadedFor=null;renderMonthly();renderAdsSummary();
 };
 el('monthlySave').onclick=()=>saveMonth();
-if(el('monthlyDas'))el('monthlyDas').oninput=()=>{
-  monthlyDas=el('monthlyDas').value===''?0:money2(el('monthlyDas').value);
-  markMonthlyDirty();
-};
 // Gasto real com Ads (mensal) — fonte oficial. Grava no mesmo AdsSummary usado pela aba
 // "Avaliar Anúncio e Produto" para manter consistência entre as duas telas.
 el('monthlyAdsSpend').oninput=()=>{
@@ -1244,7 +1242,7 @@ el('monthlyClear').onclick=async()=>{
   catch(e){alert('Erro ao zerar: '+e.message)}
 };
 // Campos monetários da aba: normaliza o texto exibido ao sair do campo
-['monthlyDas','monthlyAdsSpend','adsSpendInput','revenueTotalInput','revenueAdsInput']
+['monthlyAdsSpend','adsSpendInput','revenueTotalInput','revenueAdsInput']
   .forEach(id=>{const e=el(id);if(e)e.addEventListener('blur',()=>{
     if(e.value==='')return;const v=money2(e.value);if(String(v)!==e.value)e.value=v;
   })});

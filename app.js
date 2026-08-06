@@ -16,10 +16,13 @@ const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random
 
 function categoryOf(name){let s=name.toLowerCase();if(s.includes('eletr')||s.includes('cerca')||s.includes('voltimetro'))return'Eletrificadores e cerca';if(s.includes('esterilizador'))return'Esterilizadores de ar';if(s.includes('ionizador')||s.includes('ozônio'))return'Tratamento de piscina e ar';if(s.includes('purificador'))return'Purificadores de ar';if(s.includes('fio'))return'Fios para cerca';if(s.includes('suporte'))return'Suportes';if(s.includes('repelente'))return'Repelentes';return'Componentes e outros'}
 
-function channelDefaults(key){let x=PLATFORMS[key];return{price:0,discount:0,packaging:0,freight:0,returns:0,feeMode:x.feeMode,commission:x.commission,fixedFee:x.fixed,service:0,tax:x.tax,taxBase:'gross',unitFee:0,adsMode:'roas',adsValue:10,roasBase:'gross',targetMargin:10,purchaseMode:'amount',investment:10000,quantity:100,monthlySales:0,adsShare:100,monthlyFixed:0}}
+function channelDefaults(key){let x=PLATFORMS[key];return{price:0,discount:0,packaging:0,freight:0,returns:0,feeMode:x.feeMode,commission:x.commission,fixedFee:x.fixed,service:0,tax:x.tax,taxBase:'gross',unitFee:0,adsMode:'roas',adsValue:10,roasBase:'gross',targetMargin:10,purchaseMode:'amount',investment:10000,quantity:100,monthlySales:0,adsShare:100,monthlyFixed:0,
+  // Campos por marketplace (só estado da UI + prefill; traduzidos para as chaves do motor acima).
+  adQty:1,mlAdType:'classic',mlLogistic:'full',shopeeDestaque:false,shopeeAdsFacil:false,
+  amazonCategory:'',amazonLogistic:'fba',amazonInstallment:false}}
 
 const $=x=>document.getElementById(x);
-const fieldIds=['name','sku','category','price','discount','cost','packaging','freight','returns','feeMode','commission','fixedFee','service','tax','taxBase','unitFee','adsMode','adsValue','roasBase','targetMargin','purchaseMode','investment','quantity','monthlySales','adsShare','monthlyFixed'];
+const fieldIds=['name','sku','category','price','discount','cost','packaging','freight','returns','feeMode','commission','fixedFee','service','tax','taxBase','unitFee','adQty','adsMode','adsValue','roasBase','targetMargin','purchaseMode','investment','quantity','monthlySales','adsShare','monthlyFixed'];
 
 function current(){return products.find(x=>x.id===selectedId)}
 function currentChannel(p=current()){if(!p)return channelDefaults(platform);let c=p.channels?.[platform];return c||(p.channels=p.channels||{},p.channels[platform]=channelDefaults(platform))}
@@ -60,6 +63,91 @@ function shopeeFaixa(price){
   if(price<100)return{pct:14,fix:16,txt:'R$ 80,00–99,99 → 14% + R$ 16,00 por item'};
   if(price<200)return{pct:14,fix:20,txt:'R$ 100,00–199,99 → 14% + R$ 20,00 por item'};
   return{pct:14,fix:26,txt:'a partir de R$ 200,00 → 14% + R$ 26,00 por item'};
+}
+
+// ---------- Auto-preenchimento por marketplace ----------
+// Preenche as taxas MAIS COMUNS de cada plataforma nas chaves de canal que o motor
+// (calcAt/unitCosts) já entende. Tudo continua editável — estas funções só definem os
+// valores iniciais/derivados. NÃO é chamado a cada tecla: só na seleção do marketplace,
+// na troca de um "driver" (tipo de anúncio, categoria, logística), na virada de faixa da
+// Shopee e no botão "Restaurar padrão". Assim, edições manuais são preservadas.
+const AMZ_CATEGORIES=['Cozinha','Jardim e Piscina','Produtos para animais','Saúde e cuidados pessoais','Indústria e Ciência','Ferramentas e Construção','Outras'];
+const AMZ_COMMISSION={'Cozinha':12,'Jardim e Piscina':12,'Produtos para animais':12,'Saúde e cuidados pessoais':12,'Indústria e Ciência':12,'Ferramentas e Construção':11};
+const SHOPEE_DESTAQUE=3.5, SHOPEE_ADSFACIL=1.5, AMZ_INSTALLMENT=1.5; // % somados em "Taxa adicional"
+
+// Aplica os padrões do marketplace atual em c (muta c). Só toca nos campos DERIVADOS de
+// cada plataforma; frete/embalagem/imposto etc. seguem editáveis e não são forçados aqui.
+function applyMarketplaceDefaults(c,plat){
+  plat=plat||platform;
+  if(plat==='mercadolivre'){
+    c.feeMode='manual';
+    c.commission=c.mlAdType==='premium'?17:12; // valores iniciais; comissão real varia por categoria
+    // Sem tarifa fixa automática universal por preço: fixedFee e freight ficam editáveis.
+  }else if(plat==='shopee'){
+    c.feeMode='manual';
+    const b=shopeeFaixa(n(c.price));
+    c.commission=b.pct;c.fixedFee=b.fix; // comissão + fixo por faixa; programas opcionais entram em service
+  }else if(plat==='amazon'){
+    c.feeMode='manual';
+    c.fixedFee=0; // Plano Profissional: sem tarifa fixa por item
+    const cm=AMZ_COMMISSION[c.amazonCategory];
+    if(cm!=null)c.commission=cm; // "Outras"/vazio → comissão preenchida manualmente (não força)
+    // Uma modalidade logística por vez. FBA/DBA usam a tarifa por unidade em `unitFee` (persiste
+    // por canal = "tarifa cadastrada para o SKU"); logística própria usa só o frete informado.
+    if(c.amazonLogistic==='propria')c.unitFee=0;
+  }else if(plat==='magalu'){
+    c.feeMode='manual';
+    c.commission=9.9;c.fixedFee=5;c.freight=22.45; // valores iniciais da conta; editáveis
+  }
+  return c;
+}
+
+// Canal "novo/vazio": produto ainda não gravado OU sem preço salvo naquele marketplace.
+// Só nesse caso o auto-preenchimento entra sozinho ao abrir/trocar — precificação já
+// salva (preço > 0) é mantida sem overwrite (spec: não alterar automaticamente).
+function channelIsFresh(p,c){return (!!p&&String(p.id).startsWith('new-'))||!(+c.price>0)}
+
+// Preço mínimo recomendado (fórmula fechada da spec). Para a Shopee usa ponto-fixo: o
+// preço recomendado pode cair em outra faixa, então recalcula com a tarifa da nova faixa.
+function recommendedPrice(p,c,plat){
+  plat=plat||platform;
+  const num0=effCost(p,c)+n(c.packaging)+n(c.freight)+n(c.unitFee); // custo + embalagem + custos fixos e logísticos
+  const addPct=n(c.service)/100,taxPct=n(c.tax)/100,retPct=n(c.returns)/100,mgPct=n(c.targetMargin)/100;
+  const qty=Math.max(1,n(c.adQty)||1);
+  const priceFor=(fixedItem,comP)=>{const numerator=num0+fixedItem*qty,denom=1-comP-addPct-taxPct-retPct-mgPct;return denom>0?numerator/denom:NaN};
+  if(plat==='shopee'){
+    let b=shopeeFaixa(n(c.price));
+    for(let i=0;i<8;i++){
+      const pr=priceFor(b.fix,b.pct/100);
+      if(!Number.isFinite(pr))return NaN;
+      const nb=shopeeFaixa(pr);
+      if(nb.pct===b.pct&&nb.fix===b.fix)return Math.ceil(pr*100)/100;
+      b=nb;
+    }
+    const pr=priceFor(b.fix,b.pct/100);return Number.isFinite(pr)?Math.ceil(pr*100)/100:NaN;
+  }
+  const pr=priceFor(n(c.fixedFee),n(c.commission)/100);return Number.isFinite(pr)?Math.ceil(pr*100)/100:NaN;
+}
+
+// Linhas do "Resultado da precificação" (spec). Tarifa fixa TOTAL = fixo por item × quantidade
+// do anúncio (só exibição; o motor/Vendas seguem por unidade). Recebimento após marketplace =
+// preço menos as deduções do marketplace (comissão + fixo total + taxas adicionais + frete/log).
+function pricingSummary(p,c){
+  const price=n(c.price),cost=effCost(p,c),qty=Math.max(1,n(c.adQty)||1);
+  const comPct=n(c.commission)/100,addPct=n(c.service)/100,retPct=n(c.returns)/100;
+  const commissionRs=price*comPct;
+  const fixedTotal=n(c.fixedFee)*qty;
+  const logistics=n(c.freight)+n(c.unitFee); // frete/logística (inclui tarifa FBA/DBA por unidade)
+  const addRs=price*addPct;
+  const taxBase=c.taxBase==='net'?price*(1-n(c.discount)/100):price;
+  const taxRs=taxBase*n(c.tax)/100;
+  const returnsRs=price*retPct;
+  const packaging=n(c.packaging);
+  const received=price-commissionRs-fixedTotal-addRs-logistics;
+  const totalCost=cost+packaging+logistics+fixedTotal+commissionRs+addRs+taxRs+returnsRs;
+  const profit=price-totalCost;
+  const margin=price>0?profit/price:NaN;
+  return{price,commissionRs,fixedTotal,logistics,addRs,taxRs,returnsRs,packaging,received,totalCost,cost,profit,margin,qty,recommended:recommendedPrice(p,c)};
 }
 
 // plat EXPLÍCITO: antes esta função lia a variável global `platform`, então ao
@@ -107,7 +195,12 @@ function idealPrice(p,c,roas){if(effCost(p,c)<=0)return NaN;let lo=.01,hi=Math.m
 // Precificação = simulação por canal. Nome/SKU/categoria/custo são do cadastro central
 // (Produtos) e NÃO são reescritos aqui — só a precificação do canal (c[...]) é editada.
 function readForm(){let p=current(),c=currentChannel(p);if(!p)return{p:null,c:null};const MONEY_KEYS={price:1,cost:1,packaging:1,freight:1,fixedFee:1,unitFee:1,investment:1,monthlyFixed:1};
-for(let k of ['price','discount','cost','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=MONEY_KEYS[k]?money2(n($(k).value)):n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;
+for(let k of ['price','discount','cost','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adQty','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])c[k]=MONEY_KEYS[k]?money2(n($(k).value)):n($(k).value);for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])c[k]=$(k).value;
+// Campos por marketplace (selects e toggles). Guardados no canal para persistir o estado
+// da UI ao reabrir; traduzidos para as chaves do motor pelo auto-preenchimento.
+for(let k of ['mlAdType','mlLogistic','amazonCategory','amazonLogistic'])if($(k))c[k]=$(k).value;
+for(let k of ['shopeeDestaque','shopeeAdsFacil','amazonInstallment'])if($(k))c[k]=$(k).checked;
+if(+c.adQty<1)c.adQty=1;
 // Só guarda custo próprio quando ele DIVERGE do central: igual ao de Produtos volta a 0
 // (= "herda do cadastro"), senão o valor central ficaria congelado no canal e mudanças
 // futuras em Produtos não apareceriam mais aqui.
@@ -123,10 +216,65 @@ function fillFeeModes(cur){
   sel.innerHTML=opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
   if(cur)sel.value=cur;
 }
-function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=effCost(p,c)||'';fillFeeModes(c.feeMode);
+function writeForm(){let p=current(),c=currentChannel(p);if(!p){$('name').value='';return}
+// Canal novo/vazio → auto-preenche os padrões do marketplace. Precificação já salva
+// (preço > 0) é MANTIDA sem overwrite. Avaliado antes de herdar o preço padrão do cadastro.
+const fresh=channelIsFresh(p,c);
+$('name').value=p.name;$('sku').value=p.sku;$('category').value=p.category;$('cost').value=effCost(p,c)||'';fillFeeModes(c.feeMode);
 // Preço do canal já salvo tem prioridade; se ainda for 0, herda o "Preço de venda padrão" do cadastro (Produtos). Campo continua editável.
 if(!(+c.price>0)&&+p.default_price>0)c.price=+p.default_price;
-for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])$(k).value=c[k]??0;for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])$(k).value=c[k];syncLabels();renderAll()}
+if(fresh)applyMarketplaceDefaults(c,platform);
+for(let k of ['price','discount','packaging','freight','returns','commission','fixedFee','service','tax','unitFee','adQty','adsValue','targetMargin','investment','quantity','monthlySales','adsShare','monthlyFixed'])$(k).value=c[k]??0;
+for(let k of ['feeMode','taxBase','adsMode','roasBase','purchaseMode'])$(k).value=c[k];
+for(let k of ['mlAdType','mlLogistic','amazonCategory','amazonLogistic'])if($(k))$(k).value=c[k]??'';
+for(let k of ['shopeeDestaque','shopeeAdsFacil','amazonInstallment'])if($(k))$(k).checked=!!c[k];
+syncMarketplaceFields();syncLabels();
+lastShopeeBand=platform==='shopee'?shopeeBandKey(c.price):null; // base p/ detectar virada de faixa
+renderAll()}
+
+// Chave da faixa da Shopee (comissão|fixo) — usada para detectar virada de faixa ao mudar o preço.
+let lastShopeeBand=null;
+const shopeeBandKey=price=>{const b=shopeeFaixa(n(price));return b.pct+'|'+b.fix};
+// Shopee: ao cruzar de faixa de preço, atualiza comissão + tarifa fixa automaticamente (spec).
+function maybeShopeeBandSync(){
+  if(platform!=='shopee')return;
+  const c=currentChannel();const b=shopeeFaixa(n(c.price)),key=b.pct+'|'+b.fix;
+  if(lastShopeeBand!==null&&lastShopeeBand!==key){
+    c.commission=b.pct;c.fixedFee=b.fix;
+    $('commission').value=b.pct;$('fixedFee').value=b.fix;
+  }
+  lastShopeeBand=key;
+}
+
+// Mostra/oculta os grupos condicionais de cada marketplace ([data-mkt]) e ajusta o rótulo
+// do campo de custo logístico por unidade (vira "Tarifa FBA/DBA por unidade" na Amazon).
+function syncMarketplaceFields(){
+  document.querySelectorAll('#pricingView [data-mkt]').forEach(elm=>{elm.classList.toggle('hidden',elm.dataset.mkt!==platform)});
+  const c=currentChannel();
+  const lbl=$('unitFeeLabel');
+  if(lbl)lbl.textContent=(platform==='amazon'&&c.amazonLogistic==='dba')?'Tarifa DBA por unidade (R$)':(platform==='amazon'&&c.amazonLogistic==='fba')?'Tarifa FBA por unidade (R$)':'Custo logístico adicional (R$)';
+  const uf=$('unitFeeField');
+  if(uf)uf.classList.toggle('hidden',platform==='amazon'&&c.amazonLogistic==='propria'); // própria: usa só o frete
+}
+
+// "Resultado da precificação" (spec). Não recalcula fórmula de canal: usa pricingSummary.
+function renderPricingSummary(p,c){
+  const box=$('pricingSummary');if(!box)return;
+  const s=pricingSummary(p,c);
+  const row=(label,val,cls='')=>`<div class="result"><span>${label}</span><b class="${cls}">${val}</b></div>`;
+  box.innerHTML=
+    row('Preço de venda',money(s.price))+
+    row('Comissão em reais',money(s.commissionRs))+
+    row(`Tarifa fixa total (${s.qty} ${s.qty>1?'itens':'item'})`,money(s.fixedTotal))+
+    row('Frete / logística',money(s.logistics))+
+    row('Taxas adicionais',money(s.addRs))+
+    row('Impostos',money(s.taxRs))+
+    row('Recebimento após marketplace',money(s.received))+
+    row('Custo total do produto',money(s.totalCost))+
+    row('Lucro líquido',money(s.profit),s.profit>=0?'pos':'neg')+
+    row('Margem líquida',pct(s.margin),s.profit>=0?'pos':'neg')+
+    row('Preço mínimo recomendado',money(s.recommended));
+}
 
 function syncLabels(){let mode=$('adsMode').value;$('adsValueLabel').textContent=mode==='roas'?'ROAS atual (x)':mode==='cpa'?'CPA atual (R$)':'ACOS atual (%)';let units=$('purchaseMode').value==='units';$('investmentField').classList.toggle('hidden',units);$('quantityField').classList.toggle('hidden',!units)}
 
@@ -142,7 +290,7 @@ function renderAll(){let p=current(),c=currentChannel(p);if(!p)return;let r=calc
 // no motor, margem = (beforeAds − base/roas)/gross; invertendo p/ margem = meta ->
 //   roas = base / (beforeAds − meta·gross).  cpaMeta = Ads/venda máximo p/ bater a meta.
 const _tgt=Number(c.targetMargin)/100,_cpaMeta=r.beforeAds-_tgt*r.gross,_roasMeta=_cpaMeta>0?r.base/_cpaMeta:Infinity,_impossivel=r.gross>0&&_cpaMeta<=0,_adjRoas=(Number.isFinite(_roasMeta)&&Number.isFinite(r.roas))?((_roasMeta-r.roas>=0?'+':'')+(_roasMeta-r.roas).toFixed(2)+'x'):'—';
-$('diagnosis').innerHTML=`<h3>${d.title}</h3><p>${d.text}</p><p><b>Preço ideal:</b> ${money(ideal)}</p><p><b>Ajuste no preço:</b> ${money(ideal-c.price)}</p>`+(r.gross>0?(_impossivel?`<p style="color:var(--bad);font-weight:800">Meta exige aumento de preço ou redução de custos</p>`:`<p><b>ROAS mínimo (meta):</b> ${Number.isFinite(_roasMeta)?_roasMeta.toFixed(2)+'x':'—'}</p><p><b>Ajuste no ROAS:</b> ${_adjRoas}</p>`):'');let rows=[['Preço bruto',r.gross,'#17803d'],['Desconto',r.gross-r.net,'#d32f2f'],['Comissão',r.commission,'#d32f2f'],['Taxa fixa + adicional',(r.fixed||0)+r.service+r.unit,'#d32f2f'],['Imposto',r.tax,'#d32f2f'],['Produto + embalagem + frete',effCost(p,c)+c.packaging+c.freight,'#d32f2f'],['Reserva devoluções',r.returns,'#d32f2f'],['Sobra antes dos Ads',r.beforeAds,'#d69e00'],['CPA / Ads',r.cpa,'#d32f2f'],['Lucro líquido',r.profit,r.profit>=0?'#17803d':'#c52c2c']],max=Math.max(...rows.map(x=>Math.abs(x[1])),1);$('waterfall').innerHTML=rows.map(x=>`<div class="water-row"><span>${x[0]}</span><div class="track"><div class="fill" style="width:${Math.max(2,Math.abs(x[1])/max*100)}%;background:${x[2]}"></div></div><b>${money(x[1])}</b></div>`).join('');renderSaleAccount(p,c,r);renderBusiness(p,c,r);renderScenarios(p,c);renderCatalog()}
+$('diagnosis').innerHTML=`<h3>${d.title}</h3><p>${d.text}</p><p><b>Preço ideal:</b> ${money(ideal)}</p><p><b>Ajuste no preço:</b> ${money(ideal-c.price)}</p>`+(r.gross>0?(_impossivel?`<p style="color:var(--bad);font-weight:800">Meta exige aumento de preço ou redução de custos</p>`:`<p><b>ROAS mínimo (meta):</b> ${Number.isFinite(_roasMeta)?_roasMeta.toFixed(2)+'x':'—'}</p><p><b>Ajuste no ROAS:</b> ${_adjRoas}</p>`):'');let rows=[['Preço bruto',r.gross,'#17803d'],['Desconto',r.gross-r.net,'#d32f2f'],['Comissão',r.commission,'#d32f2f'],['Taxa fixa + adicional',(r.fixed||0)+r.service+r.unit,'#d32f2f'],['Imposto',r.tax,'#d32f2f'],['Produto + embalagem + frete',effCost(p,c)+c.packaging+c.freight,'#d32f2f'],['Reserva devoluções',r.returns,'#d32f2f'],['Sobra antes dos Ads',r.beforeAds,'#d69e00'],['CPA / Ads',r.cpa,'#d32f2f'],['Lucro líquido',r.profit,r.profit>=0?'#17803d':'#c52c2c']],max=Math.max(...rows.map(x=>Math.abs(x[1])),1);$('waterfall').innerHTML=rows.map(x=>`<div class="water-row"><span>${x[0]}</span><div class="track"><div class="fill" style="width:${Math.max(2,Math.abs(x[1])/max*100)}%;background:${x[2]}"></div></div><b>${money(x[1])}</b></div>`).join('');renderPricingSummary(p,c);renderSaleAccount(p,c,r);renderBusiness(p,c,r);renderScenarios(p,c);renderCatalog()}
 
 function renderBusiness(p,c,r){let unitCost=effCost(p,c),units=unitCost>0?(c.purchaseMode==='units'?Math.floor(c.quantity):Math.floor(c.investment/unitCost)):0,used=units*unitCost,balance=c.purchaseMode==='units'?0:Math.max(0,c.investment-used),adsShare=Math.min(1,c.adsShare/100),mixed=r.beforeAds-r.cpa*adsShare,months=c.monthlySales?units/c.monthlySales:NaN,lotFixed=Number.isFinite(months)?months*c.monthlyFixed:0,lotProfit=units*mixed-lotFixed,roi=used?lotProfit/used:NaN,capital=used+lotProfit,paybackUnits=mixed>0?Math.ceil(used/mixed):NaN;$('purchaseResults').innerHTML=`<div class="result"><span>Unidades compradas</span><b>${units.toLocaleString('pt-BR')}</b></div><div class="result"><span>Capital usado</span><b>${money(used)}</b></div><div class="result"><span>Saldo disponível</span><b>${money(balance)}</b></div><div class="result"><span>Faturamento potencial</span><b>${money(units*r.gross)}</b></div><div class="result"><span>Lucro líquido do lote</span><b>${money(lotProfit)}</b></div><div class="result"><span>ROI do lote</span><b>${pct(roi)}</b></div><div class="result"><span>Capital recuperado</span><b>${money(capital)}</b></div><div class="result"><span>Vendas para payback</span><b>${Number.isFinite(paybackUnits)?paybackUnits:'—'}</b></div>`;let sales=Math.floor(c.monthlySales),revenue=sales*r.gross,adsSpend=sales*r.cpa*adsShare,profitBefore=sales*r.beforeAds-adsSpend,profit=profitBefore-c.monthlyFixed,margin=revenue?profit/revenue:NaN,paybackMonths=profit>0?used/profit:NaN;$('monthlyResults').innerHTML=`<div class="result"><span>Faturamento bruto</span><b>${money(revenue)}</b></div><div class="result"><span>Investimento Ads</span><b>${money(adsSpend)}</b></div><div class="result"><span>Lucro antes dos fixos</span><b>${money(profitBefore)}</b></div><div class="result"><span>Lucro mensal final</span><b>${money(profit)}</b></div><div class="result"><span>Margem mensal</span><b>${pct(margin)}</b></div><div class="result"><span>Payback do estoque</span><b>${Number.isFinite(paybackMonths)?paybackMonths.toFixed(1)+' meses':'—'}</b></div>`}
 
@@ -292,7 +440,34 @@ document.querySelectorAll('[data-theme-choice="light"]').forEach(b=>b.onclick=()
 document.querySelectorAll('[data-theme-choice="dark"]').forEach(b=>b.onclick=()=>setTheme('dark'));
 setTheme(document.documentElement.dataset.theme);
 
-fieldIds.forEach(k=>{let e=$(k);if(e)e.addEventListener('input',()=>{readForm();syncLabels();renderAll();autoSave()})});
+fieldIds.forEach(k=>{let e=$(k);if(e)e.addEventListener('input',()=>{readForm();maybeShopeeBandSync();syncLabels();renderAll();autoSave()})});
+
+// ---------- Auto-preenchimento: drivers, toggles e "Restaurar padrão" ----------
+// Reaplica os padrões do marketplace ao trocar um "driver". Só toca no campo que aquele
+// driver controla — edições manuais nos demais campos são preservadas.
+function repaintAndSave(){writeForm();autoSave()}
+if($('mlAdType'))$('mlAdType').onchange=()=>{const p=current(),c=currentChannel(p);if(!p)return;readForm();c.feeMode='manual';c.commission=c.mlAdType==='premium'?17:12;repaintAndSave()};
+if($('mlLogistic'))$('mlLogistic').onchange=()=>{readForm();writeForm();autoSave()}; // informativo: recalcula/persiste
+if($('amazonCategory'))$('amazonCategory').onchange=()=>{const p=current(),c=currentChannel(p);if(!p)return;readForm();c.feeMode='manual';const cm=AMZ_COMMISSION[c.amazonCategory];if(cm!=null)c.commission=cm;repaintAndSave()};
+if($('amazonLogistic'))$('amazonLogistic').onchange=()=>{const p=current(),c=currentChannel(p);if(!p)return;readForm();c.feeMode='manual';if(c.amazonLogistic==='propria')c.unitFee=0;repaintAndSave()};
+// Programas opcionais / parcelamento: somam (ou removem) o percentual em "Taxa adicional".
+function additionalToggle(idKey,delta){const p=current(),c=currentChannel(p);if(!p)return;const on=$(idKey).checked;let s=n($('service').value);s=Math.max(0,money2(s+(on?delta:-delta)));$('service').value=s;c[idKey]=on;readForm();renderAll();autoSave()}
+if($('shopeeDestaque'))$('shopeeDestaque').onchange=()=>additionalToggle('shopeeDestaque',SHOPEE_DESTAQUE);
+if($('shopeeAdsFacil'))$('shopeeAdsFacil').onchange=()=>additionalToggle('shopeeAdsFacil',SHOPEE_ADSFACIL);
+if($('amazonInstallment'))$('amazonInstallment').onchange=()=>additionalToggle('amazonInstallment',AMZ_INSTALLMENT);
+// "Restaurar padrão": reaplica os padrões do marketplace. Confirma se a precificação já
+// estiver salva (spec: não substituir uma precificação salva sem confirmação). Preço e custo
+// do produto são mantidos.
+if($('restoreBtn'))$('restoreBtn').onclick=()=>{
+  const p=current(),c=currentChannel(p);if(!p)return;
+  const saved=!String(p.id).startsWith('new-')&&(+c.price>0);
+  if(saved&&!confirm('Restaurar os padrões de '+PLATFORMS[platform].name+'?\n\nIsto sobrescreve as taxas atuais desta precificação. O preço e o custo do produto são mantidos.'))return;
+  const d=channelDefaults(platform);
+  for(const k of ['discount','packaging','freight','returns','commission','fixedFee','service','tax','taxBase','unitFee','adQty','mlAdType','mlLogistic','shopeeDestaque','shopeeAdsFacil','amazonCategory','amazonLogistic','amazonInstallment'])c[k]=d[k];
+  c.feeMode='manual';
+  applyMarketplaceDefaults(c,platform);
+  writeForm();autoSave();
+};
 
 $('productSelect').onchange=e=>selectProduct(e.target.value);
 $('saveBtn').onclick=()=>save(true);
