@@ -52,6 +52,6 @@ create policy "stock_balances_delete_own" on public.stock_balances
 -- `on conflict do nothing`: se a linha 'general' já existir (re-execução ou edição
 -- posterior), NÃO é sobrescrita. min_qty permanece em `stock` (não é tocado aqui).
 insert into public.stock_balances (user_id, product_id, location, qty, updated_at)
-  select user_id, product_id, qty, 'general', coalesce(updated_at, now())
+  select user_id, product_id, 'general', qty, coalesce(updated_at, now())
     from public.stock
   on conflict (user_id, product_id, location) do nothing;
