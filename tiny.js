@@ -27,9 +27,10 @@ function baixarModelo(){
   if(!ativos.length){alert('Nenhum produto ativo cadastrado. Cadastre em Produtos.');return}
   const aoa=[COLS.slice()];
   ativos.forEach(p=>{
-    const c=e.entry(p.id)||{};
+    // quantidade do LOCAL selecionado (aba ativa) — modelo já sai preenchido p/ conferência
+    const q=e.qtyOf?e.qtyOf(p.id,e.currentLocation&&e.currentLocation()):0;
     // mesma ordem/nomes do Tiny; Preço só informativo, quantidade em "Estoque atual"
-    aoa.push([p.name||'',p.sku||'',(+p.default_price>0?+p.default_price:''),'UN','',(+c.qty>0?+c.qty:0)]);
+    aoa.push([p.name||'',p.sku||'',(+p.default_price>0?+p.default_price:''),'UN','',(q>0?q:0)]);
   });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:44},{wch:20},{wch:12},{wch:6},{wch:16},{wch:14}];
@@ -75,7 +76,7 @@ function acharCabecalho(linhas){
   for(let i=0;i<Math.min(linhas.length,15);i++){
     const H=(linhas[i]||[]).map(norm);
     const sku=H.findIndex(h=>h.includes('codigo')&&h.includes('sku'))>=0?H.findIndex(h=>h.includes('codigo')&&h.includes('sku')):H.findIndex(h=>h==='sku'||h==='codigo');
-    const qty=H.findIndex(h=>h.includes('estoque atual')||h==='estoque');
+    const qty=H.findIndex(h=>h.includes('estoque atual')||h==='estoque'||h.includes('quantidade')||h==='qtd'||h==='qty'||h.includes('quantity')||h==='unidades');
     if(sku>=0&&qty>=0){
       return{linha:i,col:{
         nome:H.findIndex(h=>h==='produto'||h.includes('descricao')),
@@ -131,11 +132,14 @@ function fecharModal(){const m=el('tyModal');if(m)m.classList.add('hidden')}
 function abrirConferencia(rel,nomeArquivo){
   const m=el('tyModal'),body=el('tyModalBody'),ok=el('tyConfirm');
   if(!m)return;
+  const eApi=E();
+  const loc=eApi&&eApi.currentLocation?eApi.currentLocation():'general';
+  const locLabel=eApi&&eApi.currentLocationLabel?eApi.currentLocationLabel():'Geral';
   const lista=(titulo,arr,fmt)=>arr.length
     ? `<details class="pl-det"><summary>${esc(titulo)} (${arr.length})</summary><ul>${arr.slice(0,20).map(fmt).join('')}</ul>${arr.length>20?`<p class="help">…e mais ${arr.length-20}.</p>`:''}</details>`
     : '';
   body.innerHTML=
-    `<p class="help">${esc(nomeArquivo)} · aba “${esc(ABA)}”</p>
+    `<p class="help">${esc(nomeArquivo)} · aba “${esc(ABA)}” · destino: <b>${esc(locLabel)}</b></p>
      <div class="pl-sum">
        <div class="pl-stat good"><b>${rel.encontrados.length}</b><span>produtos encontrados</span></div>
        <div class="pl-stat ${rel.naoEncontrados.length?'bad':''}"><b>${rel.naoEncontrados.length}</b><span>SKU não encontrado</span></div>
@@ -144,7 +148,7 @@ function abrirConferencia(rel,nomeArquivo){
        <div class="pl-stat ${rel.invalidos.length?'bad':''}"><b>${rel.invalidos.length}</b><span>quantidade inválida</span></div>
        <div class="pl-stat"><b>${rel.encontrados.length}</b><span>serão atualizados</span></div>
      </div>
-     <p class="help">Apenas a quantidade (“Estoque atual”) é aplicada. Preço, UN e Localização não alteram o cadastro.</p>`
+     <p class="help">Apenas a quantidade é aplicada, no local <b>${esc(locLabel)}</b>. Só os SKUs do arquivo são atualizados — os demais e os outros locais não mudam. Preço/UN não alteram o cadastro.</p>`
     +lista('Linhas sem SKU (pendência)',rel.semSku,x=>`<li>Linha ${x.linha}: <b>${esc(x.nome)}</b> — cadastre o SKU em Produtos para importar.</li>`)
     +lista('SKUs não encontrados',rel.naoEncontrados,x=>`<li>Linha ${x.linha}: <b>${esc(x.sku)}</b>${x.nome?' ('+esc(x.nome)+')':''} não está cadastrado — nenhum produto é criado automaticamente.</li>`)
     +lista('SKUs duplicados',rel.duplicados,x=>`<li>Linha ${x.linha}: <b>${esc(x.sku)}</b> repetido — vale a primeira ocorrência.</li>`)
@@ -154,7 +158,7 @@ function abrirConferencia(rel,nomeArquivo){
   ok.disabled=!rel.encontrados.length;
   ok.textContent=rel.encontrados.length?`Atualizar ${rel.encontrados.length} produto(s)`:'Nada a importar';
   ok.onclick=()=>{
-    E().applyQty(rel.encontrados);  // só memória + recálculo
+    E().applyQty(rel.encontrados,loc);  // aplica no LOCAL selecionado (só memória + recálculo)
     fecharModal();
   };
   m.classList.remove('hidden');

@@ -16,7 +16,16 @@ const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''
 const share=(v,tot)=>tot>0?(v/tot):0;
 const fmtShare=f=>(Math.max(0,f)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
 
-let cache={},loadedFor=null,dirty=false,saving=false;
+// 4 locais de estoque. 'general' = físico; os demais = Full de cada marketplace.
+const LOCS=[['general','Geral — físico','Geral'],['ml_full','Full Mercado Livre','Full ML'],
+            ['amazon_full','Full Amazon','Full Amazon'],['magalu_full','Full Magalu','Full Magalu']];
+const LOC_KEYS=LOCS.map(l=>l[0]);
+const LOC_LABEL=k=>{const l=LOCS.find(x=>x[0]===k);return l?l[1]:k};
+const blank=()=>({loc:{general:0,ml_full:0,amazon_full:0,magalu_full:0},min:0,updated:''});
+const brDate=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||'');return m?`${m[3]}/${m[2]}/${m[1]}`:'—'};
+
+// cache[product_id] = {loc:{general,ml_full,amazon_full,magalu_full}, min, updated}
+let cache={},loadedFor=null,dirty=false,saving=false,currentLoc='general';
 
 function uid(){try{return currentUser&&currentUser.id}catch(e){return null}}
 function list(){try{return Array.isArray(products)?products:[]}catch(e){return[]}}
@@ -38,9 +47,15 @@ function markDirty(){dirty=true;msg('Alterações não salvas — clique em "Sal
 async function ensureLoaded(){
   const u=uid();if(!u)return false;
   if(loadedFor===u)return true;
-  const rows=await supabaseClient.getStock(u);
+  // quantidade POR LOCAL vem de stock_balances; min_qty continua em `stock` (preservado)
+  const[bal,stk]=await Promise.all([supabaseClient.getStockBalances(u),supabaseClient.getStock(u)]);
   cache={};
-  (rows||[]).forEach(r=>{cache[r.product_id]={qty:+r.qty||0,min:+r.min_qty||0}});
+  (bal||[]).forEach(r=>{
+    const c=cache[r.product_id]=cache[r.product_id]||blank();
+    if(LOC_KEYS.includes(r.location))c.loc[r.location]=+r.qty||0;
+    if(r.updated_at&&r.updated_at>c.updated)c.updated=r.updated_at; // última atualização entre os locais
+  });
+  (stk||[]).forEach(r=>{const c=cache[r.product_id]=cache[r.product_id]||blank();c.min=+r.min_qty||0});
   loadedFor=u;dirty=false;
   return true;
 }
@@ -48,14 +63,15 @@ async function ensureLoaded(){
 // ---------- cálculo (fonte única das métricas de estoque) ----------
 function rowsData(){
   const rows=list().map(p=>{
-    const s=cache[p.id]||{};
-    const qty=+s.qty||0,min=+s.min||0;
-    const cost=+p.cost||0,price=refPrice(p);
-    const value=cost*qty;                 // valor em estoque
+    const c=cache[p.id]||blank();
+    const byLoc={};let qty=0;
+    LOC_KEYS.forEach(k=>{const q=+c.loc[k]||0;byLoc[k]=q;qty+=q}); // Total = soma dos 4 locais
+    const min=+c.min||0,cost=+p.cost||0,price=refPrice(p);
+    const value=cost*qty;                 // valor em estoque = custo central × quantidade total
     const potential=price*qty;            // valor potencial de venda
     const gross=potential-value;          // lucro bruto potencial
     const status=qty<=0?'out':(qty<=min?'low':'ok');
-    return{p,qty,min,cost,price,value,potential,gross,status};
+    return{p,byLoc,qty,min,cost,price,value,potential,gross,status,updated:c.updated};
   });
   const total=rows.reduce((a,r)=>a+r.value,0);
   rows.forEach(r=>{r.share=share(r.value,total)});
@@ -63,6 +79,12 @@ function rowsData(){
 }
 function totals(rows){
   return rows.reduce((a,r)=>({value:a.value+r.value,potential:a.potential+r.potential,gross:a.gross+r.gross,qty:a.qty+r.qty}),{value:0,potential:0,gross:0,qty:0});
+}
+// Resumo por local: unidades e valor (custo × qtd do local). Fonte única p/ Estoque e Dashboard.
+function totalsByLoc(rows){
+  const by={};LOC_KEYS.forEach(k=>{by[k]={qty:0,value:0}});
+  rows.forEach(r=>LOC_KEYS.forEach(k=>{by[k].qty+=r.byLoc[k];by[k].value+=r.cost*r.byLoc[k]}));
+  return by;
 }
 
 // ---------- filtros / ordenação ----------
@@ -86,7 +108,7 @@ function visible(rows){
 
 // ---------- render ----------
 function renderKpis(rows){
-  const t=totals(rows);
+  const t=totals(rows),byLoc=totalsByLoc(rows);
   const low=rows.filter(r=>r.status==='low').length,out=rows.filter(r=>r.status==='out').length;
   const ativos=rows.filter(r=>r.p.active!==false).length;
   const topValue=rows.slice().sort((a,b)=>b.value-a.value)[0];
@@ -99,7 +121,9 @@ function renderKpis(rows){
     kpi('SKUs ativos',fmtInt(ativos),'Status ativo no cadastro')+
     kpi('Estoque baixo',fmtInt(low),out?`${fmtInt(out)} sem estoque`:'Nenhum sem estoque')+
     kpi('Maior valor em estoque',topValue&&topValue.value>0?fmtMoney(topValue.value):'—',topValue&&topValue.value>0?topValue.p.name:'Sem dados')+
-    kpi('Maior quantidade',topQty&&topQty.qty>0?fmtInt(topQty.qty):'—',topQty&&topQty.qty>0?topQty.p.name:'Sem dados');
+    kpi('Maior quantidade',topQty&&topQty.qty>0?fmtInt(topQty.qty):'—',topQty&&topQty.qty>0?topQty.p.name:'Sem dados')+
+    // Resumo por local (valor = custo × qtd; unidades no subtítulo)
+    LOCS.map(([k,label])=>kpi(label,fmtMoney(byLoc[k].value),fmtInt(byLoc[k].qty)+' unidade(s)')).join('');
 }
 
 function renderCharts(rows){
@@ -122,46 +146,49 @@ function renderCharts(rows){
 function renderTable(rows){
   const vis=visible(rows);
   el('stCount').textContent=`${vis.length} de ${rows.length} produto(s)`;
-  const head='<thead><tr><th>Produto</th><th>SKU</th><th>Custo un.</th><th>Preço venda</th><th>Qtd. disponível</th><th>Estoque mínimo</th><th>Valor em estoque</th><th>Valor potencial</th><th>Lucro bruto pot.</th><th>Participação</th><th>Status</th></tr></thead>';
+  const hl=k=>k===currentLoc?' style="background:var(--highlight)"':''; // destaca a coluna da aba ativa
+  const locTh=LOCS.map(([k,,short])=>`<th${hl(k)}>${esc(short)}</th>`).join('');
+  const head=`<thead><tr><th>Produto</th><th>SKU</th><th>Custo un.</th>${locTh}<th>Total</th><th>Mín.</th><th>Valor</th><th>Atualizado</th><th>Status</th></tr></thead>`;
   const body=vis.map(r=>{
     const cls=r.status==='out'?'bad':r.status==='low'?'warn':'good';
     const txt=r.status==='out'?'Sem estoque':r.status==='low'?'Estoque baixo':'Normal';
+    const locTd=LOCS.map(([k])=>`<td${hl(k)}><input type="number" min="0" step="1" data-loc="${k}" data-id="${r.p.id}" value="${r.byLoc[k]||''}" placeholder="0"></td>`).join('');
     return `<tr data-sid="${r.p.id}">
       <td class="mo-name">${esc(r.p.name)}</td>
       <td>${esc(r.p.sku||'—')}</td>
       <td>${fmtMoney(r.cost)}</td>
-      <td>${fmtMoney(r.price)}</td>
-      <td><input type="number" min="0" step="1" data-st="qty" data-id="${r.p.id}" value="${r.qty||''}" placeholder="0"></td>
-      <td><input type="number" min="0" step="1" data-st="min" data-id="${r.p.id}" value="${r.min||''}" placeholder="0"></td>
+      ${locTd}
+      <td data-c="total"><b>${fmtInt(r.qty)}</b></td>
+      <td><input type="number" min="0" step="1" data-min="1" data-id="${r.p.id}" value="${r.min||''}" placeholder="0"></td>
       <td data-c="value">${fmtMoney(r.value)}</td>
-      <td data-c="potential">${fmtMoney(r.potential)}</td>
-      <td data-c="gross" class="${r.gross>=0?'pos':'neg'}">${fmtMoney(r.gross)}</td>
-      <td data-c="share">${fmtShare(r.share)}</td>
+      <td>${r.updated?brDate(r.updated):'—'}</td>
       <td><span class="status ${cls}">${txt}</span></td>
     </tr>`;
-  }).join('')||'<tr><td colspan="11" style="padding:14px">Nenhum produto com esses filtros.</td></tr>';
-  const t=totals(vis);
-  const foot=`<tfoot><tr class="mo-total"><td>TOTAL</td><td></td><td></td><td></td><td>${fmtInt(t.qty)}</td><td></td><td>${fmtMoney(t.value)}</td><td>${fmtMoney(t.potential)}</td><td class="${t.gross>=0?'pos':'neg'}">${fmtMoney(t.gross)}</td><td></td><td></td></tr></tfoot>`;
+  }).join('')||`<tr><td colspan="${LOCS.length+7}" style="padding:14px">Nenhum produto com esses filtros.</td></tr>`;
+  const t=totals(vis),byLoc=totalsByLoc(vis);
+  const locFoot=LOCS.map(([k])=>`<td>${fmtInt(byLoc[k].qty)}</td>`).join('');
+  const foot=`<tfoot><tr class="mo-total"><td>TOTAL</td><td></td><td></td>${locFoot}<td>${fmtInt(t.qty)}</td><td></td><td>${fmtMoney(t.value)}</td><td></td><td></td></tr></tfoot>`;
   el('stTable').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
-  el('stTable').querySelectorAll('input[data-st]').forEach(inp=>{
+  // edição manual por LOCAL (data-loc) e do mínimo (data-min)
+  el('stTable').querySelectorAll('input[data-loc],input[data-min]').forEach(inp=>{
     inp.addEventListener('input',()=>{
-      const id=inp.dataset.id;
-      cache[id]=cache[id]||{qty:0,min:0};
-      cache[id][inp.dataset.st]=inp.value===''?0:Math.max(0,+inp.value);
+      const id=inp.dataset.id,v=inp.value===''?0:Math.max(0,+inp.value);
+      const c=cache[id]=cache[id]||blank();
+      if(inp.dataset.min)c.min=v; else c.loc[inp.dataset.loc]=v;
       markDirty();
-      redraw(); // recalcula valores/participação/status na hora
+      redraw(); // recalcula Total/valor/status na hora
     });
   });
 }
 
 let lastFocus=null;
 function redraw(){
-  const a=document.activeElement;
-  lastFocus=a&&a.dataset&&a.dataset.st?{id:a.dataset.id,f:a.dataset.st,pos:a.selectionStart}:null;
+  const a=document.activeElement,ds=a&&a.dataset;
+  lastFocus=(ds&&(ds.loc||ds.min))?{id:ds.id,sel:ds.min?'[data-min]':`[data-loc="${ds.loc}"]`,pos:a.selectionStart}:null;
   const rows=rowsData();
   renderKpis(rows);renderCharts(rows);renderTable(rows);
   if(lastFocus){
-    const back=el('stTable').querySelector(`input[data-st="${lastFocus.f}"][data-id="${lastFocus.id}"]`);
+    const back=el('stTable').querySelector(`input${lastFocus.sel}[data-id="${lastFocus.id}"]`);
     if(back){back.focus();try{back.setSelectionRange(lastFocus.pos,lastFocus.pos)}catch(e){}}
   }
 }
@@ -171,20 +198,43 @@ async function save(){
   if(saving)return;
   const btn=el('stSave');saving=true;btn.disabled=true;btn.textContent='Salvando...';
   try{
-    // 1 requisição em lote com todas as linhas que têm quantidade ou mínimo
-    const rows=Object.keys(cache)
-      .filter(id=>list().some(p=>p.id===id))
-      .map(id=>({user_id:u,product_id:id,qty:+cache[id].qty||0,min_qty:+cache[id].min||0}));
-    if(rows.length)await supabaseClient.upsertStock(rows);
+    // Quantidade POR LOCAL -> stock_balances (1 linha por produto+local).
+    // min_qty -> `stock` (preservado; envio SÓ min_qty, sem qty, para não mexer no legado).
+    const ids=Object.keys(cache).filter(id=>list().some(p=>p.id===id));
+    const balRows=[],minRows=[];
+    ids.forEach(id=>{
+      LOC_KEYS.forEach(k=>balRows.push({user_id:u,product_id:id,location:k,qty:+cache[id].loc[k]||0}));
+      minRows.push({user_id:u,product_id:id,min_qty:+cache[id].min||0});
+    });
+    if(balRows.length)await supabaseClient.upsertStockBalances(balRows);
+    if(minRows.length)await supabaseClient.upsertStock(minRows);
+    const nowISO=new Date().toISOString();
+    ids.forEach(id=>{if(cache[id])cache[id].updated=nowISO}); // "Atualizado" reflete o save
     dirty=false;msg('Estoque salvo com sucesso','good');
+    redraw();
     try{if(typeof window.resetDashboard==='function')window.resetDashboard()}catch(e){}
     setTimeout(()=>{if(!dirty)msg('')},2500);
   }catch(e){
     console.error('Erro ao salvar estoque:',e);
     msg('Não salvou: '+e.message,'bad');
     alert('Não foi possível salvar o estoque:\n\n'+e.message+
-      (/stock/i.test(e.message)?'\n\nSe falar na tabela "stock", falta rodar sql/cadastro_central_e_estoque.sql no Supabase.':''));
+      (/stock_balances/i.test(e.message)?'\n\nSe falar na tabela "stock_balances", falta rodar sql/estoque_locais.sql no Supabase.'
+        :/stock/i.test(e.message)?'\n\nSe falar na tabela "stock", falta rodar sql/cadastro_central_e_estoque.sql no Supabase.':''));
   }finally{saving=false;btn.disabled=false;btn.textContent=dirty?'Salvar estoque •':'Salvar estoque'}
+}
+
+// ---------- abas por local ----------
+// A aba selecionada define o DESTINO da importação e destaca a coluna correspondente.
+function updateImportLabel(){
+  const b=el('tyImportar');if(b)b.textContent='Importar para '+LOC_LABEL(currentLoc);
+  const t=el('tyBtn');if(t)t.title='Importar planilha para '+LOC_LABEL(currentLoc);
+}
+function renderTabs(){
+  const box=el('stTabs');if(!box)return;
+  // reutiliza .btn/.primary já estilizados; a aba ativa fica destacada (primary)
+  box.innerHTML=LOCS.map(([k,label])=>`<button type="button" class="btn small${k===currentLoc?' primary':''}" data-loc="${k}">${esc(label)}</button>`).join('');
+  box.querySelectorAll('[data-loc]').forEach(b=>b.onclick=()=>{currentLoc=b.dataset.loc;renderTabs();redraw()});
+  updateImportLabel();
 }
 
 // ---------- eventos ----------
@@ -199,19 +249,23 @@ window.renderEstoque=async()=>{
   el('stTable').innerHTML='<tbody><tr><td style="padding:16px">Carregando...</td></tr></tbody>';
   try{await ensureLoaded()}
   catch(e){
-    el('stTable').innerHTML=`<tbody><tr><td style="padding:16px">Não foi possível carregar o estoque: ${esc(e.message)}<br><br>Se falar na tabela <b>stock</b>, falta rodar <code>sql/cadastro_central_e_estoque.sql</code> no Supabase.</td></tr></tbody>`;
+    const dica=/stock_balances/i.test(e.message)
+      ?'Falta rodar <code>sql/estoque_locais.sql</code> no Supabase (tabela <b>stock_balances</b>).'
+      :'Se falar na tabela <b>stock</b>, falta rodar <code>sql/cadastro_central_e_estoque.sql</code> no Supabase.';
+    el('stTable').innerHTML=`<tbody><tr><td style="padding:16px">Não foi possível carregar o estoque: ${esc(e.message)}<br><br>${dica}</td></tr></tbody>`;
     return;
   }
-  fillFilters();
+  fillFilters();renderTabs();
   const b=el('stSave');if(b){b.disabled=false;b.textContent=dirty?'Salvar estoque •':'Salvar estoque'}
   redraw();
 };
-// Dashboard consome o estoque já calculado (sem duplicar fórmula)
+// Dashboard consome o estoque já calculado (sem duplicar fórmula): total = soma dos 4 locais,
+// valor = custo central × quantidade total; byLocation traz o resumo por local (unidades+valor).
 window.stockSnapshot=()=>{
-  const rows=rowsData(),t=totals(rows);
+  const rows=rowsData(),t=totals(rows),byLoc=totalsByLoc(rows);
   return{rows,total:t.value,potential:t.potential,gross:t.gross,qty:t.qty,
          low:rows.filter(r=>r.status==='low').length,out:rows.filter(r=>r.status==='out').length,
-         loaded:loadedFor!==null};
+         byLocation:byLoc,loaded:loadedFor!==null};
 };
 window.stockEnsureLoaded=ensureLoaded;
 window.resetStock=()=>{cache={};loadedFor=null;dirty=false};
@@ -222,15 +276,19 @@ window.PainelEstoque={
   products:()=>list(),
   entry:id=>cache[id]||null,
   isDirty:()=>dirty,
-  // rows: [{product_id, qty}] — atualiza SÓ os produtos presentes na planilha;
-  // os demais permanecem intactos (nada é apagado).
-  applyQty(rows){
+  currentLocation:()=>currentLoc,               // aba/local ativo (destino da importação)
+  currentLocationLabel:()=>LOC_LABEL(currentLoc),
+  qtyOf:(id,loc)=>{const c=cache[id];return c?(+c.loc[LOC_KEYS.includes(loc)?loc:currentLoc]||0):0},
+  // rows: [{product_id, qty}] — atualiza SÓ o LOCAL alvo dos produtos presentes na planilha;
+  // os demais produtos E os demais locais permanecem intactos (nada é apagado/zerado).
+  applyQty(rows,location){
+    const loc=LOC_KEYS.includes(location)?location:currentLoc;
     (rows||[]).forEach(r=>{
-      const cur=cache[r.product_id]||{qty:0,min:0};
-      cache[r.product_id]=Object.assign({},cur,{qty:+r.qty||0});
+      const c=cache[r.product_id]=cache[r.product_id]||blank();
+      c.loc[loc]=+r.qty||0;
     });
     markDirty();  // mostra "Alterações não salvas"
-    redraw();     // recalcula cards, gráficos e valor do estoque
+    redraw();     // recalcula cards, gráficos, Total e valor do estoque
   }
 };
 })();

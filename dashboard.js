@@ -314,10 +314,14 @@ function aplicarOlhoLucro(boxId,label){
   pintar();
 }
 
+const STK_LOCS=[['general','Geral'],['ml_full','Full ML'],['amazon_full','Full Amazon'],['magalu_full','Full Magalu']];
 function renderKpis(a){
   const t=a.total,P=aggPrev;
   const st=stock;
   const sub=(txt,cur,prev,fmt)=>txt+(delta(cur,prev==null?null:prev,fmt)?'<br>'+delta(cur,prev,fmt):'');
+  // Resumo por LOCAL do estoque (valor = custo × qtd; unidades ao lado). Soma única, sem duplicidade.
+  const bl=st&&st.byLocation;
+  const locResumo=bl?STK_LOCS.map(([k,l])=>`${l}: ${fmtMoney(bl[k].value)} · ${fmtInt(bl[k].qty)} un`).join('<br>'):'';
   el('dashKpis').innerHTML=
     kpi('Faturamento total',fmtMoney(t.rev),sub(`${a.months.length} mês(es) · ${Object.keys(a.byPlat).length} marketplace(s)`,t.rev,P&&P.total.rev))+
     kpi('Lucro operacional',fmtMoney(t.operational),sub('Antes dos Ads e gastos gerais',t.operational,P&&P.total.operational))+
@@ -334,8 +338,9 @@ function renderKpis(a){
     // ficam lado a lado para conferência (calculado × pago).
     kpi('DAS calculado (vendas)',fmtMoney(a.dasCalc),sub('Faturamento × taxa · todos os marketplaces do período',a.dasCalc,P&&P.dasCalc))+
     kpi('DAS pago no mês',fmtMoney(a.dasOficial),'Informado no painel acima — memorando, não descontado 2x (imposto já no operacional)')+
-    kpi('Valor atual do estoque',st?fmtMoney(st.total):'—',st?'Custo × quantidade':'Abra a aba Estoque')+
-    kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade':'Abra a aba Estoque')+
+    kpi('Valor atual do estoque',st?fmtMoney(st.total):'—',st?('Soma dos 4 locais · custo × qtd total'+(locResumo?'<br>'+locResumo:'')):'Abra a aba Estoque')+
+    kpi('Unidades em estoque',st?fmtInt(st.qty):'—',st?'Soma de todos os locais':'Abra a aba Estoque')+
+    kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade total':'Abra a aba Estoque')+
     kpi('Produtos com estoque baixo',st?fmtInt(st.low):'—',st?(st.out?fmtInt(st.out)+' sem estoque':'Nenhum sem estoque'):'Abra a aba Estoque');
   aplicarOlhoLucro();
 }

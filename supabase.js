@@ -171,6 +171,20 @@ const supabaseClient = {
     });
   },
 
+  // ---------- Estoque por LOCAL (stock_balances) — 1 linha por produto+local ----------
+  // Requer sql/estoque_locais.sql. min_qty continua em `stock`; aqui só a quantidade por local.
+  async getStockBalances(userId) {
+    return this.request(`/stock_balances?user_id=eq.${userId}&select=product_id,location,qty,updated_at`);
+  },
+
+  // Upsert em lote por (user_id, product_id, location): atualiza só os locais enviados.
+  async upsertStockBalances(rows) {
+    if (!rows || !rows.length) return null;
+    return this.request('/stock_balances?on_conflict=user_id,product_id,location', 'POST', rows, {
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
+    });
+  },
+
   // ---------- Resultado mensal (por usuário + marketplace + produto + mês) ----------
   async getMonthlySales(userId, platform, month) {
     return this.request(`/monthly_sales?user_id=eq.${userId}&platform=eq.${platform}&month=eq.${month}`);
