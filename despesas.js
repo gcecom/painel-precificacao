@@ -125,6 +125,29 @@ async function ensureLoaded(force){
   }finally{carregando=false}
 }
 
+// ---------- seletor "Mês de competência" (MM/AAAA + "Todos os meses") ----------
+let mesReady=false;
+const rotuloMes=ym=>ym.slice(5)+'/'+ym.slice(0,4); // 'YYYY-MM' -> 'MM/AAAA'
+function addMeses(ym,n){let[y,m]=ym.split('-').map(Number);m+=n;while(m<1){m+=12;y--}while(m>12){m-=12;y++}return y+'-'+pad(m)}
+// Meses ofertados: do 1º vencimento cadastrado (máx. 24 meses atrás) até 12 meses à frente
+// (permite ver as ocorrências recorrentes futuras). O mês atual sempre está incluso.
+function mesesDisponiveis(){
+  const starts=lista().map(d=>ymOf(d.due_date)).filter(Boolean).sort();
+  const atual=mesAtualYM();
+  let ini=(starts[0]&&starts[0]<atual)?starts[0]:atual;
+  const back=addMeses(atual,-24);if(ini<back)ini=back;
+  return mesesEntre(ini,addMeses(atual,12));
+}
+function preencherMeses(){
+  const sel=el('dpMonth');if(!sel)return;
+  const keep=sel.value;
+  const meses=mesesDisponiveis().slice().reverse(); // mais recentes primeiro
+  sel.innerHTML='<option value="">Todos os meses</option>'+meses.map(m=>`<option value="${m}">${esc(rotuloMes(m))}</option>`).join('');
+  if(!mesReady){sel.value=mesAtualYM();mesReady=true}                 // inicia no MÊS ATUAL
+  else if([...sel.options].some(o=>o.value===keep))sel.value=keep;    // preserva a escolha (inclui "Todos" = '')
+  else sel.value='';
+}
+
 // ---------- filtros ----------
 function filtros(){
   return{
@@ -132,17 +155,24 @@ function filtros(){
     de:el('dpFrom').value||'',
     ate:el('dpTo').value||'',
     cat:el('dpFilterCat').value||'',
-    st:el('dpFilterStatus').value||''
+    st:el('dpFilterStatus').value||'',
+    mes:(el('dpMonth')&&el('dpMonth').value)||''   // '' = Todos os meses; senão 'YYYY-MM'
   };
 }
 function filtrar(){
   const f=filtros();
-  // Janela de competências a materializar: usa o período do filtro; sem período, do 1º
-  // vencimento cadastrado até o mês atual (recorrências mensais aparecem em cada mês).
-  const starts=lista().map(d=>ymOf(d.due_date)).filter(Boolean).sort();
-  const de=f.de?ymOf(f.de):(starts[0]||mesAtualYM());
-  const ate=f.ate?ymOf(f.ate):mesAtualYM();
-  const months=mesesEntre(de,ate<de?de:ate);
+  // Janela de competências a materializar. Com "Mês de competência" escolhido, é só aquele
+  // mês; em "Todos os meses", do 1º vencimento até o mês atual (respeitando o período por data
+  // se houver). Recorrência mensal aparece em cada mês; única, só no mês do vencimento.
+  let months;
+  if(f.mes){
+    months=[f.mes];
+  }else{
+    const starts=lista().map(d=>ymOf(d.due_date)).filter(Boolean).sort();
+    const de=f.de?ymOf(f.de):(starts[0]||mesAtualYM());
+    const ate=f.ate?ymOf(f.ate):mesAtualYM();
+    months=mesesEntre(de,ate<de?de:ate);
+  }
   return ocorrencias(lista(),months).filter(d=>{   // d.due_date já é a data da competência
     if(f.q&&!String(d.description||'').toLowerCase().includes(f.q))return false;
     if(f.de&&d.due_date<f.de)return false;      // período usa a data da OCORRÊNCIA
@@ -182,6 +212,7 @@ function preencherSelects(){
   const c=el('dpCat'),fc=el('dpFilterCat');
   if(c){const keep=c.value;c.innerHTML=cats.map(x=>`<option>${esc(x)}</option>`).join('');if(keep)c.value=keep}
   if(fc){const keep=fc.value;fc.innerHTML='<option value="">Todas</option>'+cats.map(x=>`<option>${esc(x)}</option>`).join('');if(keep)fc.value=keep}
+  preencherMeses();
 }
 
 // ---------- cards (respeitam os filtros) ----------
@@ -393,6 +424,7 @@ function mesAtual(){
 function limparFiltros(){
   ['dpSearch','dpFrom','dpTo'].forEach(id=>{const e=el(id);if(e)e.value=''});
   el('dpFilterCat').value='';el('dpFilterStatus').value='';
+  if(el('dpMonth'))el('dpMonth').value=mesAtualYM(); // volta ao mês atual (estado inicial)
   redraw();
 }
 
@@ -400,13 +432,13 @@ if(el('dpSave'))el('dpSave').onclick=salvar;
 if(el('dpCancel'))el('dpCancel').onclick=()=>{limparForm();msg('')};
 if(el('dpStatus'))el('dpStatus').onchange=togglePago;
 ['dpSearch','dpFrom','dpTo'].forEach(id=>{const e=el(id);if(e)e.addEventListener('input',redraw)});
-['dpFilterCat','dpFilterStatus'].forEach(id=>{const e=el(id);if(e)e.addEventListener('change',redraw)});
+['dpFilterCat','dpFilterStatus','dpMonth'].forEach(id=>{const e=el(id);if(e)e.addEventListener('change',redraw)});
 if(el('dpThisMonth'))el('dpThisMonth').onclick=mesAtual;
 if(el('dpClear'))el('dpClear').onclick=limparFiltros;
 
 window.renderDespesas=render;
 // logout limpa o estado em memória (mesmo padrão dos outros módulos)
-window.resetDespesas=()=>{itens=[];carregado=false;editandoId='';};
+window.resetDespesas=()=>{itens=[];carregado=false;editandoId='';mesReady=false;};
 // exposto para teste e para a futura integração com o Financeiro
 window.PainelDespesas={itens:()=>lista(),filtrar,situacao,ordenar,ordemAtual:()=>({...ordem}),
   // Função ÚNICA de competência, compartilhada com Financeiro/DRE, Dashboard e Início
