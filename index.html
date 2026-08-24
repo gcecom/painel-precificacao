@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=83">
+<link rel="stylesheet" href="styles.css?v=84">
 </head>
 <body>
 <div class="app-shell">
@@ -153,7 +153,7 @@
         <button type="button" role="menuitem" id="plImportar">Importar planilha</button>
       </div>
       <input type="file" id="plFile" accept=".xlsx,.xls,.csv" hidden>
-    </span><button class="btn primary" id="monthlySave">Salvar mês</button><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
+    </span><button class="btn primary" id="monthlySave">Salvar mês</button><button class="btn" id="monthlyRecalc" title="Regrava as taxas congeladas deste mês com a configuração atual de Produtos e Precificação. Pede confirmação — altera um resultado histórico.">Recalcular mês</button><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
 </div>
 <div class="monthly-months" id="monthlyMonthList"></div>
 <div class="mo-block-title">1. Resumo do mês</div>
@@ -398,21 +398,21 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=83"></script>
-<script src="app.js?v=83"></script>
+<script src="supabase.js?v=84"></script>
+<script src="app.js?v=84"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=83"></script>
-<script src="nav.js?v=83"></script>
-<script src="produtos.js?v=83"></script>
-<script src="estoque.js?v=83"></script>
-<script src="consolida.js?v=83"></script>
-<script src="dashboard.js?v=83"></script>
-<script src="financeiro.js?v=83"></script>
-<script src="daterange.js?v=83"></script>
-<script src="inicio.js?v=83"></script>
-<script src="planilha.js?v=83"></script>
-<script src="tiny.js?v=83"></script>
-<script src="despesas.js?v=83"></script>
-<script src="assistente.js?v=83"></script>
+<script src="performance.js?v=84"></script>
+<script src="nav.js?v=84"></script>
+<script src="produtos.js?v=84"></script>
+<script src="estoque.js?v=84"></script>
+<script src="consolida.js?v=84"></script>
+<script src="dashboard.js?v=84"></script>
+<script src="financeiro.js?v=84"></script>
+<script src="daterange.js?v=84"></script>
+<script src="inicio.js?v=84"></script>
+<script src="planilha.js?v=84"></script>
+<script src="tiny.js?v=84"></script>
+<script src="despesas.js?v=84"></script>
+<script src="assistente.js?v=84"></script>
 </body>
 </html>

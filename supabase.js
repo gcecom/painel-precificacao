@@ -200,8 +200,28 @@ const supabaseClient = {
     return this._snapshotOk;
   },
 
+  // A coluna `variant` (perfil do anúncio: Clássico/Premium/…) só existe depois de
+  // sql/vendas_snapshot_v2.sql. Sem ela o painel continua salvando 1 linha por
+  // produto/mês, como antes — nada quebra, só não há perfis separados.
+  _variantOk: null,
+  async hasVariant() {
+    if (this._variantOk !== null) return this._variantOk;
+    try { await this.request('/monthly_sales?select=variant&limit=1'); this._variantOk = true }
+    catch (e) { this._variantOk = false }
+    return this._variantOk;
+  },
+
+  // O on_conflict acompanha a unicidade real da tabela: com `variant`, Clássico e Premium
+  // do mesmo SKU/mês são linhas distintas; sem ela, mantém a chave antiga de 4 colunas.
+  // Nos dois casos é UPSERT — reimportar o mesmo mês atualiza, nunca duplica.
   async upsertMonthlySale(row) {
-    return this.request('/monthly_sales?on_conflict=user_id,platform,product_id,month', 'POST', row, {
+    const withVariant = await this.hasVariant();
+    const conflict = withVariant
+      ? 'user_id,platform,product_id,month,variant'
+      : 'user_id,platform,product_id,month';
+    const body = Object.assign({}, row);
+    if (!withVariant) delete body.variant;
+    return this.request(`/monthly_sales?on_conflict=${conflict}`, 'POST', body, {
       'Prefer': 'resolution=merge-duplicates,return=minimal',
     });
   },

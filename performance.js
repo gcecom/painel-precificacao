@@ -762,7 +762,15 @@ async function ensureMonthlyLoaded(){
   // Normaliza ao CARREGAR (só em memória): o input, o cálculo e o total passam a usar
   // o mesmo valor de 2 casas. O banco não é tocado — a linha só é reescrita quando o
   // usuário salvar o mês de novo (sem migração em massa).
-  (rows||[]).forEach(r=>{monthlyCache[r.product_id]={units:units0(r.units),price:money2(r.price),ads:r.ads_unit}});
+  // `snapshot` e `variant` vêm junto: é o snapshot que congela o mês (o cadastro atual
+  // não é mais consultado nas linhas já salvas) e o variant que separa Clássico/Premium.
+  // _src='db' marca linha JÁ gravada: sem snapshot ela continua "estimada" e nunca é
+  // congelada em silêncio — só pelo botão de recálculo explícito.
+  (rows||[]).forEach(r=>{
+    const k=ckey(r.product_id,r.variant||'');
+    monthlyCache[k]={units:units0(r.units),price:money2(r.price),ads:r.ads_unit,
+      snapshot:r.snapshot||null,variant:r.variant||'',_src:'db'};
+  });
   monthlyExpenses=exp&&exp.amount!=null?+exp.amount:0;
   monthlyMonths=months||[];
   monthlyLoadedFor=key;
@@ -843,9 +851,94 @@ async function renderCompare(){
   if(stt){stt.className='status good';stt.textContent='Comparando com '+monthLabel(pm)}
 }
 
+// ---------- SNAPSHOT DO FECHAMENTO (histórico congelado) ----------
+// A Precificação é SIMULAÇÃO do momento. O que a venda custou fica gravado por linha em
+// monthly_sales.snapshot no ato de salvar/importar. Depois disso, mudar Produtos ou
+// Precificação NÃO altera nenhum mês já salvo — o passado lê só o snapshot.
+const VARIANTES={'':'Padrão',classic:'Clássico',premium:'Premium'};
+function variantLabel(v){return VARIANTES[v||'']||String(v)}
+const ckey=(pid,variant)=>variant?(String(pid)+'|'+variant):String(pid); // '' = chave legada intacta
+const ckeyPid=k=>{const i=String(k).indexOf('|');return i<0?String(k):String(k).slice(0,i)};
+const ckeyVar=k=>{const i=String(k).indexOf('|');return i<0?'':String(k).slice(i+1)};
+
+// Lê um snapshot v2: TODAS as taxas já vêm congeladas, então nada é rederivado das
+// regras atuais do marketplace (faixa da Shopee, tarifa fixa do ML, comissão do cadastro).
+// Se o preço da linha continua o mesmo do fechamento, usa os valores em R$ exatos; se o
+// usuário mudar o preço, as ALÍQUOTAS congeladas são reaplicadas ao novo preço.
+function unitCostsFromSnapshot(snap,price){
+  const P=money2(price);
+  const igual=Math.abs(P-money2(+snap.price||0))<0.005;
+  const num=(v,alt)=>Number.isFinite(+v)?+v:(+alt||0);
+  const fixo=(rs,pct)=>igual&&rs!=null&&Number.isFinite(+rs)?+rs:money2(P*num(pct,0)/100);
+  const commRs=fixo(snap.commissionRs,snap.commissionPct);
+  const servRs=fixo(snap.serviceRs,snap.servicePct);
+  const retRs =fixo(snap.returnsRs,snap.returnsPct);
+  const taxRs =fixo(snap.taxRs,snap.taxPct);
+  const fixedFee=num(snap.fixedFee),unitFee=num(snap.unitFee);
+  const freight=num(snap.freight),packaging=num(snap.packaging);
+  const cost=num(snap.cost);
+  const comm=commRs+fixedFee+servRs+unitFee;
+  const frete=freight+packaging+retRs;
+  return{comm,frete,tax:taxRs,cost,profit:P-comm-frete-taxRs-cost,gross:P,frozen:true};
+}
+
+// Congela a configuração ATUAL do canal rodando o motor vigente uma única vez: o que fica
+// gravado é exatamente o que a tela mostrou no fechamento. `real` (opcional) traz os
+// valores REAIS da planilha, que têm prioridade campo a campo sobre a configuração.
+function buildSnapshot(p,plat,month,price,units,variant,real){
+  real=real||{};
+  const P=money2(price);
+  const defs=(typeof channelDefaults==='function')?channelDefaults(plat):{};
+  const base=Object.assign({},defs,(p&&p.channels&&p.channels[plat])||{});
+  const ch=Object.assign({},base,{discount:0,cost:0}); // mesma normalização de unitCosts
+  const r=(typeof calcAt==='function')?calcAt(p,ch,P,undefined,plat):null;
+  const fields={};
+  const num=v=>(v==null||v==='')?null:(Number.isFinite(+v)?+v:null);
+  // valor da planilha vence; senão o congelado da configuração atual
+  const take=(k,cfg)=>{const v=num(real[k]);if(v!=null){fields[k]='planilha';return v}fields[k]='config';return money2(+cfg||0)};
+
+  let commissionRs,commissionPct;
+  if(num(real.commissionRs)!=null){
+    commissionRs=money2(real.commissionRs);
+    commissionPct=P>0?money2(commissionRs/P*100):0;
+    fields.commission='planilha';
+  }else if(num(real.commissionPct)!=null){
+    commissionPct=money2(real.commissionPct);
+    commissionRs=money2(P*commissionPct/100);
+    fields.commission='planilha';
+  }else{
+    commissionRs=money2(r?r.commission:0);
+    commissionPct=P>0?money2(commissionRs/P*100):money2(+ch.commission||0);
+    fields.commission='config';
+  }
+  const fixedFee =take('fixedFee', r?r.fixed:ch.fixedFee);
+  const unitFee  =take('unitFee',  r?r.unit :ch.unitFee);
+  const freight  =take('freight',  ch.freight);
+  const packaging=take('packaging',ch.packaging);
+  const servicePct=num(real.servicePct)!=null?(fields.servicePct='planilha',money2(real.servicePct)):(fields.servicePct='config',money2(+ch.service||0));
+  const returnsPct=num(real.returnsPct)!=null?(fields.returnsPct='planilha',money2(real.returnsPct)):(fields.returnsPct='config',money2(+ch.returns||0));
+  const taxPct    =num(real.taxPct)   !=null?(fields.taxPct='planilha',   money2(real.taxPct)):   (fields.taxPct='config',   money2(+ch.tax||0));
+  const taxBase   =real.taxBase||ch.taxBase||'gross';
+  const cost      =num(real.cost)!=null?(fields.cost='planilha',money2(real.cost)):(fields.cost='config',money2((p&&p.cost)||0));
+  return{
+    v:2,at:new Date().toISOString(),platform:plat,month:month||'',
+    variant:variant||'',variantLabel:variantLabel(variant),
+    source:Object.keys(fields).some(k=>fields[k]==='planilha')?'planilha':'config',
+    price:P,units:units0(units),cost,
+    commissionPct,commissionRs,fixedFee,servicePct,serviceRs:money2(P*servicePct/100),
+    unitFee,freight,packaging,returnsPct,returnsRs:money2(P*returnsPct/100),
+    taxPct,taxBase,taxRs:money2(P*taxPct/100),feeMode:ch.feeMode||'manual',fields,
+    // `ch` mantém compatibilidade com o caminho legado (snapshot v1) e com quem lê snap.ch
+    ch:{tax:taxPct,taxBase,commission:commissionPct,feeMode:'manual',fixedFee,
+        service:servicePct,unitFee,freight,packaging,returns:returnsPct}
+  };
+}
+
 // Custos por unidade de um produto EM UM marketplace, ao preço informado.
 // Fonte única do cálculo: usada pelo Resultado Mensal e pelo Dashboard Geral.
 function unitCosts(p,price,plat,snap){
+  // snapshot v2 = fechamento congelado: manda sozinho, sem consultar cadastro nem regra atual
+  if(snap&&+snap.v>=2)return unitCostsFromSnapshot(snap,price);
   // Mescla os padrões do canal POR BAIXO do que está salvo: um channels[plat] parcial
   // (legado, sem `tax`/`taxBase`) herdaria 0% e zeraria o imposto do produto em silêncio.
   // Valor salvo sempre vence — inclusive um 0 deliberado.
@@ -884,17 +977,36 @@ function currentAdsSpend(){
 }
 
 function monthlyRowsData(){
-  const rows=savedProducts().map(p=>{
-    const s=monthlyCache[p.id]||{};
+  const prods=savedProducts();
+  const byId={};prods.forEach(p=>{byId[p.id]=p});
+  // Uma linha por PERFIL lançado (Clássico, Premium, …) + a linha padrão de cada produto,
+  // que continua sempre disponível para digitar. Perfis só existem se alguém os criou.
+  const ordem={};prods.forEach((p,i)=>{ordem[p.id]=i});
+  const chaves=prods.map(p=>ckey(p.id,''));
+  Object.keys(monthlyCache).forEach(k=>{
+    if(ckeyVar(k)&&byId[ckeyPid(k)]&&chaves.indexOf(k)<0)chaves.push(k);
+  });
+  chaves.sort((a,b)=>(ordem[ckeyPid(a)]-ordem[ckeyPid(b)])||String(ckeyVar(a)).localeCompare(String(ckeyVar(b)),'pt-BR'));
+  const rows=chaves.map(k=>{
+    const p=byId[ckeyPid(k)],variant=ckeyVar(k);
+    const s=monthlyCache[k]||{};
     const ch=(p.channels&&p.channels[curPlatform()])||{};
     const units=+s.units||0;
-    // Preço médio: 1) valor salvo do mês/marketplace  2) preço do canal na Precificação
-    // 3) preço padrão do cadastro central  4) zero. Um 0 salvo conta como "não informado"
-    // — senão salvar só as unidades gravaria price=0 e o mês perderia o preço-base.
-    const price=money2(+s.price>0?+s.price:(+ch.price>0?+ch.price:(+p.default_price||0)));
-    const u=monthlyUnit(p,price);
+    // snapshot efetivo para CALCULAR: o gravado no banco ou, numa importação ainda não
+    // salva, o que já foi congelado no momento da importação (a tela mostra o valor real).
+    const gravado=s.snapshot||null;
+    const snap=gravado||s.pendingSnapshot||null;
+    // Preço médio: 1) valor salvo do mês/marketplace  2) preço congelado no snapshot
+    // 3) preço do canal na Precificação  4) preço padrão do cadastro  5) zero. Um 0 salvo
+    // conta como "não informado" — senão salvar só as unidades perderia o preço-base.
+    const price=money2(+s.price>0?+s.price:((snap&&+snap.price>0)?+snap.price:(+ch.price>0?+ch.price:(+p.default_price||0))));
+    // snapshot manda quando existe: mês salvo não se move ao mudar Produtos/Precificação
+    const u=unitCosts(p,price,curPlatform(),snap);
     const rev=units*price;
-    return{p,units,price,rev,u,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units};
+    const temLancamento=units>0||(+s.price>0);
+    return{p,key:k,variant,snapshot:snap,savedSnapshot:gravado,src:s._src||'novo',
+      congelado:!!snap,estimado:!snap&&temLancamento,temLancamento,
+      units,price,rev,u,comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units};
   });
   // Rateio do Ads mensal proporcional ao faturamento: todo produto recebe a MESMA
   // % de Ads sobre a própria receita. Faturamento zero não recebe rateio.
@@ -970,7 +1082,7 @@ function markMonthlyDirty(){
 
 // Grava tudo o que o usuário preencheu no mês/marketplace aberto, em upsert
 // (user_id, platform, product_id, month) — nunca duplica o mesmo mês.
-async function saveMonth(){
+async function saveMonth(recalcular){
   const uid=curUserId();if(!uid){alert('Faça login para salvar.');return false}
   const btn=el('monthlySave'),mo=curMonth(),plat=curPlatform();
   const prev=btn?btn.textContent:'';
@@ -978,21 +1090,32 @@ async function saveMonth(){
   setPersist('saving');
   try{
     const rows=monthlyRowsData();
-    // Congela custo e taxas do fechamento (auditoria #1 e #2). Se a coluna `snapshot`
-    // ainda não existir no banco, salva sem ela — comportamento antigo, sem quebrar.
+    // Congela custo e taxas do fechamento. Se a coluna `snapshot` ainda não existir no
+    // banco, salva sem ela — comportamento antigo, sem quebrar.
     const comSnap=await supabaseClient.hasSnapshot();
-    const snapDe=p=>{
-      const c=(p.channels&&p.channels[plat])||{};
-      return{cost:money2(p.cost||0),ch:{tax:c.tax,taxBase:c.taxBase,commission:c.commission,
-        feeMode:c.feeMode,fixedFee:c.fixedFee,service:c.service,unitFee:c.unitFee,
-        freight:c.freight,packaging:c.packaging,returns:c.returns}};
+    // REGRA DO CONGELAMENTO (o que impede o passado de se mover):
+    //  * linha que JÁ tem snapshot  -> a coluna é OMITIDA do upsert. Com merge-duplicates
+    //    o PostgREST só grava as colunas enviadas, então o snapshot original fica intacto.
+    //  * linha nova (digitada agora) ou vinda da importação -> congela a configuração atual
+    //    (ou os valores reais da planilha, que já vieram prontos em pendingSnapshot).
+    //  * linha legada SEM snapshot já gravada no banco -> continua "estimada"; não é
+    //    congelada em silêncio (só no recálculo explícito).
+    //  * recalcular=true (botão + confirmação) -> regrava o snapshot de TODAS as linhas.
+    const snapshotDe=r=>{
+      if(!comSnap)return null;
+      if(recalcular)return buildSnapshot(r.p,plat,mo,r.price,r.units,r.variant,null);
+      if(r.savedSnapshot)return null;                  // já congelado no banco: não toca
+      if(r.src==='db')return null;                     // legado sem snapshot: segue estimado
+      const s=monthlyCache[r.key]&&monthlyCache[r.key].pendingSnapshot;
+      return s||buildSnapshot(r.p,plat,mo,r.price,r.units,r.variant,null);
     };
-    // 1 upsert por produto com lançamento + os gastos gerais (únicos por usuário/mês)
+    // 1 upsert por produto/perfil com lançamento + os gastos gerais (únicos por usuário/mês)
     const jobs=rows
-      .filter(r=>r.units>0||(monthlyCache[r.p.id]&&(+monthlyCache[r.p.id].units>0||+monthlyCache[r.p.id].price>0)))
+      .filter(r=>r.units>0||(monthlyCache[r.key]&&(+monthlyCache[r.key].units>0||+monthlyCache[r.key].price>0)))
       .map(r=>{
-        const row={user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:units0(r.units),price:money2(r.price),ads_unit:0};
-        if(comSnap)row.snapshot=snapDe(r.p);
+        const row={user_id:uid,platform:plat,product_id:r.p.id,month:mo,units:units0(r.units),price:money2(r.price),ads_unit:0,variant:r.variant||''};
+        const snap=snapshotDe(r);
+        if(snap)row.snapshot=snap;
         return supabaseClient.upsertMonthlySale(row);
       });
     // amount = valor salvo carregado, regravado INTACTO (a aba não edita gastos gerais);
@@ -1008,7 +1131,9 @@ async function saveMonth(){
     if(h){h.textContent='Mês salvo com sucesso';h.style.color='var(--good)'}
     setTimeout(()=>{const x=el('monthlyMonthHint');if(x&&!monthlyDirty){x.textContent='Cada mês fica salvo separadamente';x.style.color=''}},2500);
     try{if(typeof window.resetDashboard==='function')window.resetDashboard()}catch(e){}
-    renderCompare();
+    // Relê do banco: as linhas voltam com o snapshot gravado e passam a exibir "congelado"
+    monthlyLoadedFor=null;
+    await renderMonthly();
     return true;
   }catch(e){
     monthlySaveError(e);setPersist('dirty');
@@ -1112,11 +1237,19 @@ function paintMonthlyTable(){
   const rows=sortMonthlyRows(monthlyRowsData());
   let body='';
   for(const r of rows){
-    body+=`<tr data-mid="${r.p.id}">
-      <td class="mo-name">${esc(r.p.name)}</td>
-      <td>${fmtMoney(r.p.cost||0)}</td>
-      <td><input type="number" min="0" step="1" data-mo="units" data-id="${r.p.id}" value="${r.units||''}" placeholder="0"></td>
-      <td><input type="number" min="0" step="0.01" data-mo="price" data-id="${r.p.id}" value="${r.price?money2(r.price):''}" placeholder="0,00"></td>
+    // Perfil do anúncio e origem do cálculo. "Congelado" = lê o snapshot do fechamento;
+    // "estimado" = linha antiga sem snapshot, que ainda usa o cadastro atual.
+    const tagPerfil=r.variant?` <span class="status neutral">${esc(variantLabel(r.variant))}</span>`:'';
+    const tagOrigem=r.congelado
+      ?` <span class="status good" title="Taxas congeladas no fechamento${r.snapshot&&r.snapshot.at?' em '+new Date(r.snapshot.at).toLocaleDateString('pt-BR'):''} — mudar Produtos/Precificação não altera este mês.">congelado</span>`
+      :(r.estimado?` <span class="status warn" title="Lançamento antigo, sem taxas congeladas: o cálculo usa a configuração atual. Use &quot;Recalcular mês&quot; para congelar.">estimado</span>`:'');
+    // Custo exibido: o congelado da linha quando existe (o cadastro pode ter mudado depois)
+    const custoLinha=r.congelado?(+r.u.cost||0):(+r.p.cost||0);
+    body+=`<tr data-mid="${esc(r.key)}">
+      <td class="mo-name">${esc(r.p.name)}${tagPerfil}${tagOrigem}</td>
+      <td>${fmtMoney(custoLinha)}</td>
+      <td><input type="number" min="0" step="1" data-mo="units" data-id="${esc(r.key)}" value="${r.units||''}" placeholder="0"></td>
+      <td><input type="number" min="0" step="0.01" data-mo="price" data-id="${esc(r.key)}" value="${r.price?money2(r.price):''}" placeholder="0,00"></td>
       <td data-c="adsUnit">${fmtMoney(r.adsUnit)}</td>
       <td data-c="rev">${fmtMoney(r.rev)}</td>
       <td data-c="comm">${fmtMoney(r.comm)}</td>
@@ -1138,9 +1271,11 @@ function paintMonthlyTable(){
   tb.querySelectorAll('input[data-mo]').forEach(inp=>{
     inp.addEventListener('input',()=>{
       const id=inp.dataset.id;
-      monthlyCache[id]=monthlyCache[id]||{};
+      const novo=!monthlyCache[id];
+      monthlyCache[id]=monthlyCache[id]||{variant:ckeyVar(id),_src:'novo'};
       // dinheiro sempre 2 casas; unidades sempre inteiras
       monthlyCache[id][inp.dataset.mo]=inp.value===''?0:(inp.dataset.mo==='price'?money2(inp.value):units0(inp.value));
+      if(novo)monthlyCache[id]._src='novo'; // lançamento criado agora: congela ao salvar
       updateMonthly();
       markMonthlyDirty();
     });
@@ -1167,7 +1302,7 @@ function monthlyFootHTML(rows){
 function updateMonthly(){
   const tb=el('monthlyTable'),rows=monthlyRowsData();
   for(const r of rows){
-    const tr=tb.querySelector(`tr[data-mid="${r.p.id}"]`);if(!tr)continue;
+    const tr=tb.querySelector(`tr[data-mid="${CSS.escape(r.key)}"]`);if(!tr)continue;
     const set=(c,v)=>{const td=tr.querySelector(`td[data-c="${c}"]`);if(td)td.textContent=v};
     set('adsUnit',fmtMoney(r.adsUnit));set('rev',fmtMoney(r.rev));set('comm',fmtMoney(r.comm));set('frete',fmtMoney(r.frete));set('tax',fmtMoney(r.tax));set('cost',fmtMoney(r.cost));set('ads',fmtMoney(r.ads));
     const pt=tr.querySelector('td[data-c="profit"]');if(pt){pt.textContent=fmtMoney(r.profit);pt.className=r.profit>=0?'pos':'neg'}
@@ -1221,6 +1356,23 @@ el('monthlyMonth').onchange=()=>{
   syncMonthInputs(novo);monthlyLoadedFor=null;renderMonthly();renderAdsSummary();
 };
 el('monthlySave').onclick=()=>saveMonth();
+// Recálculo do mês: única forma de reescrever taxas já congeladas. Exige ação explícita
+// + confirmação, porque isto MUDA um resultado histórico já fechado.
+if(el('monthlyRecalc'))el('monthlyRecalc').onclick=async()=>{
+  const uid=curUserId();if(!uid){alert('Faça login para recalcular.');return}
+  const mo=curMonth();
+  const rows=monthlyRowsData().filter(r=>r.units>0||r.temLancamento);
+  if(!rows.length){alert('Não há lançamentos neste mês para recalcular.');return}
+  const congeladas=rows.filter(r=>r.congelado).length,estimadas=rows.length-congeladas;
+  if(!confirm(
+    `Recalcular ${monthLabel(mo)} em ${platformName()} com a configuração ATUAL de Produtos e Precificação?\n\n`+
+    `• ${rows.length} lançamento(s) serão recongelados\n`+
+    (congeladas?`• ${congeladas} já tinham taxas congeladas e SERÃO SOBRESCRITAS\n`:'')+
+    (estimadas?`• ${estimadas} estimado(s) passarão a ficar congelados\n`:'')+
+    `\nIsto altera um resultado histórico e não pode ser desfeito pelo painel.`
+  ))return;
+  await saveMonth(true);
+};
 // Gasto real com Ads (mensal) — fonte oficial. Grava no mesmo AdsSummary usado pela aba
 // "Avaliar Anúncio e Produto" para manter consistência entre as duas telas.
 el('monthlyAdsSpend').oninput=()=>{
@@ -1262,13 +1414,28 @@ window.PainelVendas={
   platform:()=>curPlatform(),
   platformName:()=>platformName(),
   products:()=>savedProducts(),
-  entry:id=>monthlyCache[id]||null,
+  entry:(id,variant)=>monthlyCache[ckey(id,variant||'')]||null,
+  variantLabel,
+  // Prévia do congelamento — usada pela revisão da importação para mostrar, campo a campo,
+  // o que vem da planilha e o que vem congelado da configuração atual. Não grava nada.
+  previewSnapshot:(product,price,units,variant,real)=>buildSnapshot(product,curPlatform(),curMonth(),price,units,variant,real),
   isDirty:()=>monthlyDirty,
-  // rows: [{product_id, units, price}] — atualiza SÓ os produtos presentes na planilha
+  // rows: [{product_id, units, price, variant?, real?}] — atualiza SÓ os produtos da planilha.
+  // Cada linha já sai daqui com o snapshot pronto (valores reais da planilha quando houver,
+  // senão a configuração atual congelada). "Salvar mês" só persiste — não recalcula.
   apply(rows){
+    const plat=curPlatform(),mo=curMonth();
     (rows||[]).forEach(r=>{
-      const cur=monthlyCache[r.product_id]||{};
-      monthlyCache[r.product_id]=Object.assign({},cur,{units:units0(r.units),price:money2(r.price)});
+      const variant=r.variant||'';
+      const k=ckey(r.product_id,variant);
+      const cur=monthlyCache[k]||{};
+      const p=savedProducts().find(x=>x.id===r.product_id);
+      const price=money2(r.price),units=units0(r.units);
+      // Reimportar o mesmo mês ATUALIZA a linha (mesma chave produto+perfil) — nunca duplica.
+      monthlyCache[k]=Object.assign({},cur,{
+        units,price,variant,_src:'import',
+        pendingSnapshot:p?buildSnapshot(p,plat,mo,price,units,variant,r.real):null
+      });
     });
     markMonthlyDirty();   // mostra "Alterações não salvas" e guarda rascunho local
     renderMonthly();      // recalcula receita, Ads rateado, imposto, lucro e margem

@@ -36,8 +36,10 @@ function consolidar(raw, products, months, opts){
   const seen={};const lines=[];
   (raw.sales||[]).forEach(r=>{
     if(!monthSet.has(r.month))return;
-    const dedup=(r.user_id||'')+'|'+r.platform+'|'+r.product_id+'|'+r.month;
-    if(seen[dedup])return; // nunca soma registro duplicado do mesmo user/mkt/produto/mês
+    // A chave inclui o PERFIL do anúncio (variant): Clássico e Premium do mesmo SKU no
+    // mesmo mês são lançamentos distintos e devem somar — sem isso um deles sumiria.
+    const dedup=(r.user_id||'')+'|'+r.platform+'|'+r.product_id+'|'+r.month+'|'+(r.variant||'');
+    if(seen[dedup])return; // nunca soma registro duplicado do mesmo user/mkt/produto/perfil/mês
     seen[dedup]=true;
     // #2 — produto excluído do cadastro NÃO pode apagar a venda antiga. Com snapshot,
     // o histórico continua exato; sem ele (linha legada), a venda é preservada com o
