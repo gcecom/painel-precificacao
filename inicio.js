@@ -164,8 +164,11 @@ function montarTooltip12(box,meses,fat,liq){
 
   function pintar(){
     if(idx<0){tip.style.display='none';return}
+    // Prejuízo no mês: rótulo E valor do lucro em vermelho, acompanhando a linha do
+    // gráfico. Lucro >= 0 mantém o verde da série. Só continua aparecendo com o olho ABERTO.
+    const corDoMes=liq[idx]<0?'var(--bad)':corLiq;
     const liqLinha=olhoAberto()
-      ? `<div class="ini-tip-row"><span style="color:${corLiq}">Lucro líquido</span><b style="color:${corLiq}">${fmtMoney(liq[idx])}</b></div>`
+      ? `<div class="ini-tip-row"><span style="color:${corDoMes}">Lucro líquido</span><b style="color:${corDoMes}">${fmtMoney(liq[idx])}</b></div>`
       : '';
     tip.innerHTML=`<div class="ini-tip-mes">${esc(monthLabel(meses[idx]))}</div>`
       +`<div class="ini-tip-row"><span style="color:${corFat}">Faturamento</span><b style="color:${corFat}">${fmtMoney(fat[idx])}</b></div>`
@@ -223,8 +226,8 @@ async function renderGrafico12(u){
       return b?(b.operational-b.ads-g):-g; // mês sem venda: só os gastos (negativo)
     });
     box.innerHTML=C.lineChart(meses.map(monthLabel),[
-      {name:'Faturamento',data:fat},{name:'Lucro líquido',data:liq}
-    ]);
+      {name:'Faturamento',data:fat},{name:'Lucro líquido',data:liq,neg:true}
+    ]); // neg:true → mês com prejuízo sai em vermelho (ponto + trecho da linha)
     montarTooltip12(box,meses,fat,liq);
     const comDado=meses.filter(m=>a.byMonth[m]).length;
     if(stt){stt.className='status '+(comDado?'good':'neutral');

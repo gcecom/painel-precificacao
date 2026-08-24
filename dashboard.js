@@ -66,6 +66,8 @@ function aggregate(months,fPlat,fProd,fCat){
 
 // ---------- gráficos em SVG (sem dependência externa; segue o estilo do painel) ----------
 const CH=['#3483fa','#17803d','#d97706','#7656a8','#ee4d2d','#0086ff','#c52c2c','#0f766e','#a16207','#4b5563'];
+// Vermelho de prejuízo — mesma variável usada em textos/valores negativos, então segue o tema
+const NEG_COLOR='var(--bad)';
 // Cores oficiais dos marketplaces — fixas por canal (não pela ordem dos dados).
 const PLAT_COLORS={mercadolivre:'#FFE600',shopee:'#EE4D2D',amazon:'#FF9900',magalu:'#0086FF'};
 const BRAND_NEUTRAL='#3483fa'; // "Todos"/consolidado
@@ -88,9 +90,31 @@ function lineChart(labels,series){
   svg+=`<line x1="${pad}" y1="${y(0)}" x2="${W-12}" y2="${y(0)}" stroke="var(--line)" stroke-width="1"/>`;
   series.forEach((s,si)=>{
     const c=CH[si%CH.length];
-    const pts=s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
-    svg+=`<polyline fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" points="${pts}"/>`;
-    s.data.forEach((v,i)=>{svg+=`<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="${c}"><title>${esc(labels[i])}: ${fmtMoney(v)}</title></circle>`});
+    // s.neg = série de resultado (lucro): mês negativo sai em vermelho — só o ponto e o
+    // trecho correspondente da linha, nunca a série inteira. Cor pelo tema (var(--bad)).
+    if(!s.neg){
+      const pts=s.data.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+      svg+=`<polyline fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" points="${pts}"/>`;
+    }else{
+      // desenha segmento a segmento, quebrando no cruzamento do zero para que só o
+      // pedaço abaixo de zero fique vermelho
+      const seg=(x1,y1,x2,y2,cor)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${cor}" stroke-width="2.5" stroke-linecap="round"/>`;
+      for(let i=0;i<s.data.length-1;i++){
+        const v1=s.data[i],v2=s.data[i+1];
+        const x1=x(i),y1=y(v1),x2=x(i+1),y2=y(v2);
+        if((v1<0)===(v2<0)){                       // mesmo sinal: um trecho só
+          svg+=seg(x1,y1,x2,y2,v1<0?NEG_COLOR:c);
+        }else{                                     // cruza o zero: divide no ponto exato
+          const t=v1/(v1-v2),xc=x1+(x2-x1)*t,yc=y(0);
+          svg+=seg(x1,y1,xc,yc,v1<0?NEG_COLOR:c);
+          svg+=seg(xc,yc,x2,y2,v2<0?NEG_COLOR:c);
+        }
+      }
+    }
+    s.data.forEach((v,i)=>{
+      const cor=(s.neg&&v<0)?NEG_COLOR:c;
+      svg+=`<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="${cor}"><title>${esc(labels[i])}: ${fmtMoney(v)}</title></circle>`;
+    });
   });
   labels.forEach((l,i)=>{svg+=`<text x="${x(i)}" y="${H-8}" font-size="11" fill="var(--muted)" text-anchor="middle">${esc(l)}</text>`});
   svg+=`<text x="4" y="${y(max)+4}" font-size="10" fill="var(--muted)">${esc(fmtMoney(max))}</text>`;
@@ -146,7 +170,7 @@ function renderCharts(a){
 
   el('dashCharts').innerHTML=
     chartCard('Faturamento por mês',lineChart(labels,[{name:'Faturamento',data:revByMonth}]))+
-    chartCard('Lucro líquido por mês',lineChart(labels,[{name:'Lucro líquido',data:liqByMonth}]),'Já descontados Ads do mês e gastos gerais (uma vez por mês).')+
+    chartCard('Lucro líquido por mês',lineChart(labels,[{name:'Lucro líquido',data:liqByMonth,neg:true}]),'Já descontados Ads do mês e gastos gerais (uma vez por mês). Meses no vermelho aparecem em vermelho.')+
     chartCard('Ads x faturamento',lineChart(labels,[{name:'Faturamento',data:revByMonth},{name:'Ads',data:adsByMonth}]))+
     chartCard('Faturamento por marketplace',barChart(plats.sort((x,y)=>y.value-x.value)))+
     chartCard('Participação dos marketplaces',doughnut(plats))+
