@@ -53,17 +53,31 @@ function consolidar(raw, products, months, opts){
     const price=+r.price>0?+r.price:(+ch.price>0?+ch.price:(+p.default_price||0));
     if(units<=0&&price<=0)return;
     const u=unitCosts(p,price,r.platform,r.snapshot); // #1 — snapshot manda quando existe
-    lines.push({p,plat:r.platform,month:r.month,units,price,rev:units*price,
+    const s=r.snapshot;
+    // MES SALVO (snapshot v3): receita, lucro operacional e Ads DISTRIBUIDO vem congelados.
+    // Nada aqui consulta Produtos, Precificacao ou o gasto de Ads de hoje.
+    const congelado=s&&+s.v>=3&&Number.isFinite(+s.operational);
+    lines.push({p,plat:r.platform,month:r.month,units,price,
+      rev:congelado?(+s.revenue||0):units*price,
       comm:u.comm*units,frete:u.frete*units,tax:u.tax*units,cost:u.cost*units,
-      operational:u.profit*units}); // lucro ANTES dos Ads mensais
+      operational:congelado?(+s.operational||0):u.profit*units, // lucro ANTES dos Ads mensais
+      adsFrozen:congelado&&Number.isFinite(+s.adsRs)?(+s.adsRs||0):null,
+      incompleto:!s});                                 // legado: "histórico incompleto"
   });
 
   // 2) rateio do Ads: pct real de cada (marketplace|mês) pelo faturamento TOTAL daquele mkt/mês
-  const revByKey={};
-  lines.forEach(l=>{revByKey[l.plat+'|'+l.month]=(revByKey[l.plat+'|'+l.month]||0)+l.rev});
+  // Linha com Ads CONGELADO usa o proprio valor; so as demais rateiam o que sobra do
+  // gasto informado. Assim, editar o Ads de um mes ja salvo nao move aquele mes.
+  const revByKey={},frozenByKey={};
   lines.forEach(l=>{
+    const k=l.plat+'|'+l.month;
+    if(l.adsFrozen!=null)frozenByKey[k]=(frozenByKey[k]||0)+l.adsFrozen;
+    else revByKey[k]=(revByKey[k]||0)+l.rev;
+  });
+  lines.forEach(l=>{
+    if(l.adsFrozen!=null){l.ads=l.adsFrozen;return}
     const key=l.plat+'|'+l.month;
-    const spend=adsByKey[key]||0,revK=revByKey[key]||0;
+    const spend=Math.max(0,(adsByKey[key]||0)-(frozenByKey[key]||0)),revK=revByKey[key]||0;
     l.ads=revK>0?l.rev*(spend/revK):0;
   });
 
@@ -110,7 +124,10 @@ function consolidar(raw, products, months, opts){
     margemLiquida:RATIO(liquido,total.rev),
     tacos:RATIO(adsTotal,total.rev),
     filtered:!!(fPlat||fProd||fCat),
-    removidos:sel.filter(l=>l.p._removido).length
+    removidos:sel.filter(l=>l.p._removido).length,
+    // linhas sem snapshot: o consumidor sinaliza "historico incompleto" (nunca em silencio)
+    incompletos:sel.filter(l=>l.incompleto).length,
+    congelados:sel.filter(l=>!l.incompleto).length
   };
 }
 

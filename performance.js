@@ -885,8 +885,8 @@ function unitCostsFromSnapshot(snap,price){
 // Congela a configuração ATUAL do canal rodando o motor vigente uma única vez: o que fica
 // gravado é exatamente o que a tela mostrou no fechamento. `real` (opcional) traz os
 // valores REAIS da planilha, que têm prioridade campo a campo sobre a configuração.
-function buildSnapshot(p,plat,month,price,units,variant,real){
-  real=real||{};
+function buildSnapshot(p,plat,month,price,units,variant,real,extra){
+  real=real||{};extra=extra||{};
   const P=money2(price);
   const defs=(typeof channelDefaults==='function')?channelDefaults(plat):{};
   const base=Object.assign({},defs,(p&&p.channels&&p.channels[plat])||{});
@@ -920,14 +920,26 @@ function buildSnapshot(p,plat,month,price,units,variant,real){
   const taxPct    =num(real.taxPct)   !=null?(fields.taxPct='planilha',   money2(real.taxPct)):   (fields.taxPct='config',   money2(+ch.tax||0));
   const taxBase   =real.taxBase||ch.taxBase||'gross';
   const cost      =num(real.cost)!=null?(fields.cost='planilha',money2(real.cost)):(fields.cost='config',money2((p&&p.cost)||0));
+  // TOTAIS DO FECHAMENTO — congelados junto com as taxas. A partir daqui o mes salvo
+  // nao depende de mais nada: nem de Produtos, nem da Precificacao, nem do rateio de Ads.
+  const U=units0(units);
+  const serviceRs=money2(P*servicePct/100),returnsRs=money2(P*returnsPct/100),taxRs=money2(P*taxPct/100);
+  const revenue=money2(P*U);
+  const adsRs=money2(+extra.adsRs||0);                       // Ads DISTRIBUIDO nesta linha
+  const unitProfit=P-commissionRs-fixedFee-serviceRs-unitFee-freight-packaging-returnsRs-taxRs-cost;
+  const operational=money2(unitProfit*U);                    // lucro operacional (antes dos Ads)
+  const afterAds=money2(operational-adsRs);                  // lucro apos Ads
+  const margin=revenue>0?afterAds/revenue:null;              // sem receita -> null (exibe "—")
   return{
-    v:2,at:new Date().toISOString(),platform:plat,month:month||'',
+    v:3,at:new Date().toISOString(),platform:plat,month:month||'',
     variant:variant||'',variantLabel:variantLabel(variant),
     source:Object.keys(fields).some(k=>fields[k]==='planilha')?'planilha':'config',
-    price:P,units:units0(units),cost,
-    commissionPct,commissionRs,fixedFee,servicePct,serviceRs:money2(P*servicePct/100),
-    unitFee,freight,packaging,returnsPct,returnsRs:money2(P*returnsPct/100),
-    taxPct,taxBase,taxRs:money2(P*taxPct/100),feeMode:ch.feeMode||'manual',fields,
+    productId:(p&&p.id)||null,sku:(p&&p.sku)||'',name:(p&&p.name)||'',
+    price:P,units:U,revenue,cost,
+    commissionPct,commissionRs,fixedFee,servicePct,serviceRs,
+    unitFee,freight,packaging,returnsPct,returnsRs,
+    taxPct,taxBase,taxRs,feeMode:ch.feeMode||'manual',fields,
+    adsRs,operational,afterAds,margin,
     // `ch` mantém compatibilidade com o caminho legado (snapshot v1) e com quem lê snap.ch
     ch:{tax:taxPct,taxBase,commission:commissionPct,feeMode:'manual',fixedFee,
         service:servicePct,unitFee,freight,packaging,returns:returnsPct}
@@ -937,7 +949,9 @@ function buildSnapshot(p,plat,month,price,units,variant,real){
 // Custos por unidade de um produto EM UM marketplace, ao preço informado.
 // Fonte única do cálculo: usada pelo Resultado Mensal e pelo Dashboard Geral.
 function unitCosts(p,price,plat,snap){
-  // snapshot v2 = fechamento congelado: manda sozinho, sem consultar cadastro nem regra atual
+  // snapshot v2+ = fechamento congelado: manda sozinho, sem consultar cadastro nem regra
+  // atual. v3 acrescenta receita, Ads distribuido e resultados — os campos por unidade
+  // sao os mesmos, entao o leitor serve para as duas versoes.
   if(snap&&+snap.v>=2)return unitCostsFromSnapshot(snap,price);
   // Mescla os padrões do canal POR BAIXO do que está salvo: um channels[plat] parcial
   // (legado, sem `tax`/`taxBase`) herdaria 0% e zeraria o imposto do produto em silêncio.
@@ -1011,11 +1025,19 @@ function monthlyRowsData(){
   // Rateio do Ads mensal proporcional ao faturamento: todo produto recebe a MESMA
   // % de Ads sobre a própria receita. Faturamento zero não recebe rateio.
   const spend=currentAdsSpend();
-  const revTotal=rows.reduce((a,r)=>a+r.rev,0);
-  const pct=revTotal>0?spend/revTotal:0;
   const cents=v=>Math.round(v*100)/100;
+  // ADS CONGELADO: linha com snapshot v3 ja tem o Ads distribuido gravado no fechamento.
+  // Ela NAO volta para o rateio — mudar o gasto de Ads hoje nao pode mover um mes salvo.
+  const congelada=r=>r.savedSnapshot&&+r.savedSnapshot.v>=3&&Number.isFinite(+r.savedSnapshot.adsRs);
+  rows.forEach(r=>{if(congelada(r)){r.ads=money2(+r.savedSnapshot.adsRs);r.adsUnit=r.units>0?r.ads/r.units:0}});
+  // As demais (mes ainda nao salvo, ou linha nova dentro de um mes salvo) rateiam o que
+  // sobra do gasto informado, proporcionalmente a propria receita.
+  const livres=rows.filter(r=>!congelada(r));
+  const gasto=cents(spend-rows.filter(congelada).reduce((a,r)=>a+r.ads,0));
+  const revLivre=livres.reduce((a,r)=>a+r.rev,0);
+  const pct=revLivre>0&&gasto>0?gasto/revLivre:0;
   let maxIdx=-1,maxRev=-1;
-  rows.forEach((r,i)=>{
+  livres.forEach((r,i)=>{
     r.adsUnit=r.rev>0?r.price*pct:0;
     r.ads=r.rev>0?cents(r.rev*pct):0;
     if(r.rev>maxRev){maxRev=r.rev;maxIdx=i}
@@ -1023,12 +1045,22 @@ function monthlyRowsData(){
   // Resíduo de arredondamento no produto de maior faturamento: a soma da coluna
   // "Ads total" fecha exatamente com o gasto informado.
   if(pct>0&&maxIdx>=0){
-    const diff=cents(spend-rows.reduce((a,r)=>a+r.ads,0));
-    if(Math.abs(diff)>=0.005)rows[maxIdx].ads=cents(rows[maxIdx].ads+diff);
+    const diff=cents(gasto-livres.reduce((a,r)=>a+r.ads,0));
+    if(Math.abs(diff)>=0.005)livres[maxIdx].ads=cents(livres[maxIdx].ads+diff);
   }
   rows.forEach(r=>{
-    r.profit=r.u.profit*r.units-r.ads;
-    r.margin=r.rev>0?r.profit/r.rev:NaN;
+    const s=r.savedSnapshot;
+    if(s&&+s.v>=3&&Number.isFinite(+s.afterAds)&&Math.abs(money2(r.price)-money2(+s.price||0))<0.005&&units0(r.units)===units0(+s.units||0)){
+      // MES SALVO, linha intacta: le os TOTAIS do snapshot em vez de recalcular.
+      // As colunas de componente (comm/frete/tax/cost) ja vieram congeladas de `u`.
+      r.rev=money2(+s.revenue||0);
+      r.profit=money2(+s.afterAds);
+      r.margin=Number.isFinite(+s.margin)?+s.margin:(r.rev>0?r.profit/r.rev:NaN);
+    }else{
+      // linha ainda nao salva (ou editada agora): acompanha a precificacao vigente
+      r.profit=r.u.profit*r.units-r.ads;
+      r.margin=r.rev>0?r.profit/r.rev:NaN;
+    }
   });
   return rows;
 }
@@ -1101,13 +1133,33 @@ async function saveMonth(recalcular){
     //  * linha legada SEM snapshot já gravada no banco -> continua "estimada"; não é
     //    congelada em silêncio (só no recálculo explícito).
     //  * recalcular=true (botão + confirmação) -> regrava o snapshot de TODAS as linhas.
+    // O Ads DISTRIBUIDO entra no snapshot: r.ads ja veio rateado por monthlyRowsData
+    // sobre o gasto informado do mes. Congelado aqui, deixa de depender do rateio de hoje.
     const snapshotDe=r=>{
       if(!comSnap)return null;
-      if(recalcular)return buildSnapshot(r.p,plat,mo,r.price,r.units,r.variant,null);
+      const extra={adsRs:r.ads||0};
+      if(recalcular){
+        const s=buildSnapshot(r.p,plat,mo,r.price,r.units,r.variant,null,extra);
+        // AUDITORIA do recalculo explicito: guarda o antes junto do novo snapshot.
+        const antes=r.savedSnapshot;
+        if(antes)s.audit=(Array.isArray(antes.audit)?antes.audit.slice(-4):[]).concat([{
+          at:new Date().toISOString(),acao:'recalculo',
+          de:{commissionPct:antes.commissionPct,taxPct:antes.taxPct,cost:antes.cost,
+              freight:antes.freight,adsRs:antes.adsRs,operational:antes.operational,afterAds:antes.afterAds},
+          para:{commissionPct:s.commissionPct,taxPct:s.taxPct,cost:s.cost,
+                freight:s.freight,adsRs:s.adsRs,operational:s.operational,afterAds:s.afterAds}
+        }]);
+        return s;
+      }
       if(r.savedSnapshot)return null;                  // já congelado no banco: não toca
       if(r.src==='db')return null;                     // legado sem snapshot: segue estimado
       const s=monthlyCache[r.key]&&monthlyCache[r.key].pendingSnapshot;
-      return s||buildSnapshot(r.p,plat,mo,r.price,r.units,r.variant,null);
+      // a importação congelou taxas reais da planilha; o Ads distribuído só existe agora
+      if(s)return Object.assign({},s,{adsRs:money2(extra.adsRs),
+        operational:money2(+s.operational||0),
+        afterAds:money2((+s.operational||0)-money2(extra.adsRs)),
+        margin:(+s.revenue>0)?((+s.operational||0)-money2(extra.adsRs))/(+s.revenue):null});
+      return buildSnapshot(r.p,plat,mo,r.price,r.units,r.variant,null,extra);
     };
     // 1 upsert por produto/perfil com lançamento + os gastos gerais (únicos por usuário/mês)
     const jobs=rows
@@ -1418,7 +1470,9 @@ window.PainelVendas={
   variantLabel,
   // Prévia do congelamento — usada pela revisão da importação para mostrar, campo a campo,
   // o que vem da planilha e o que vem congelado da configuração atual. Não grava nada.
-  previewSnapshot:(product,price,units,variant,real)=>buildSnapshot(product,curPlatform(),curMonth(),price,units,variant,real),
+  // extra={adsRs} congela o Ads distribuído; mes sobrescreve o mês corrente (usado nos testes)
+  previewSnapshot:(product,price,units,variant,real,extra,mes)=>
+    buildSnapshot(product,curPlatform(),mes||curMonth(),price,units,variant,real,extra),
   isDirty:()=>monthlyDirty,
   // rows: [{product_id, units, price, variant?, real?}] — atualiza SÓ os produtos da planilha.
   // Cada linha já sai daqui com o snapshot pronto (valores reais da planilha quando houver,

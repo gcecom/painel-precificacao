@@ -32,7 +32,7 @@ eq('1. julho congela comissão 11%',snapJulho.commissionPct,11);
 eq('1. julho congela comissão em R$ (11% de 100)',snapJulho.commissionRs,11);
 eq('1. julho congela imposto 9,5%',snapJulho.taxPct,9.5);
 eq('1. julho congela custo do produto',snapJulho.cost,20);
-ok('1. snapshot marca versão 2',+snapJulho.v===2,'v='+snapJulho.v);
+ok('1. snapshot marca versão congelada (v>=2)',+snapJulho.v>=2,'v='+snapJulho.v);
 ok('1. snapshot guarda marketplace, mês e data',
    snapJulho.platform===PLAT&&!!snapJulho.month&&!!snapJulho.at,
    `${snapJulho.platform} · ${snapJulho.month} · ${snapJulho.at}`);
