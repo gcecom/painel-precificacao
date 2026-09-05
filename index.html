@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=88">
+<link rel="stylesheet" href="styles.css?v=89">
 </head>
 <body>
 <div class="app-shell">
@@ -57,6 +57,38 @@
     <button id="printBtn"></button><button id="exportBtn"></button><button id="importBtn"></button><input id="importFile" type="file" accept="application/json">
   </div>
 </header>
+
+<nav class="bottom-nav" id="bottomNav" aria-label="Navegação principal">
+  <button class="bn-item" type="button" data-bn="inicio"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="bn-txt">Início</span></button>
+  <button class="bn-item" type="button" data-bn="dash"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span><span class="bn-txt">Dashboard</span></button>
+  <button class="bn-item" type="button" data-bn="vendas"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span><span class="bn-txt">Vendas</span></button>
+  <button class="bn-item" type="button" data-bn="estoque"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect width="12" height="12" x="6" y="10"/></svg></span><span class="bn-txt">Estoque</span></button>
+  <button class="bn-item" type="button" id="bnMore" data-bn="mais" aria-haspopup="true" aria-expanded="false"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span><span class="bn-txt">Mais</span></button>
+</nav>
+
+<div class="more-sheet hidden" id="moreSheet">
+  <div class="more-scrim" id="moreScrim"></div>
+  <div class="more-panel" role="dialog" aria-modal="true" aria-label="Mais opções">
+    <div class="more-head"><b>Mais</b><button type="button" class="more-close" id="moreClose" aria-label="Fechar">✕</button></div>
+    <div class="more-grid">
+      <button class="more-item" type="button" data-module="precificacao">Precificação</button>
+      <button class="more-item" type="button" data-module="produtos">Produtos</button>
+      <button class="more-item" type="button" data-module="anuncios">Anúncios</button>
+      <button class="more-item" type="button" data-module="financeiro">Financeiro</button>
+      <button class="more-item" type="button" data-module="despesas">Despesas</button>
+      <button class="more-item" type="button" data-module="config">Configurações</button>
+    </div>
+    <div class="more-divider"></div>
+    <div class="more-account">
+      <div class="theme-toggle" role="group" aria-label="Tema do painel">
+        <button class="theme-option" type="button" data-theme-choice="light" aria-pressed="false" aria-label="Ativar modo claro">☀ Claro</button>
+        <button class="theme-option" type="button" data-theme-choice="dark" aria-pressed="false" aria-label="Ativar modo escuro">☾ Escuro</button>
+      </div>
+      <div class="more-user" id="moreUser"></div>
+      <button class="btn" type="button" id="moreLogout">Sair</button>
+    </div>
+  </div>
+</div>
 
 <section class="grid-main" id="pricingView">
 <section class="panel" style="grid-column:1/-1">
@@ -440,23 +472,26 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=88"></script>
-<script src="app.js?v=88"></script>
+<script src="supabase.js?v=89"></script>
+<script src="app.js?v=89"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=88"></script>
-<script src="nav.js?v=88"></script>
-<script src="produtos.js?v=88"></script>
-<script src="produtos-planilha.js?v=88"></script>
-<script src="estoque.js?v=88"></script>
-<script src="consolida.js?v=88"></script>
-<script src="dashboard.js?v=88"></script>
-<script src="financeiro.js?v=88"></script>
-<script src="daterange.js?v=88"></script>
-<script src="inicio.js?v=88"></script>
-<script src="planilha.js?v=88"></script>
-<script src="precificacao-planilha.js?v=88"></script>
-<script src="tiny.js?v=88"></script>
-<script src="despesas.js?v=88"></script>
-<script src="assistente.js?v=88"></script>
+<script src="performance.js?v=89"></script>
+<script src="nav.js?v=89"></script>
+<script src="tabelas-mobile.js?v=89"></script>
+<script src="filtro-mobile.js?v=89"></script>
+<script src="chart-touch.js?v=89"></script>
+<script src="produtos.js?v=89"></script>
+<script src="produtos-planilha.js?v=89"></script>
+<script src="estoque.js?v=89"></script>
+<script src="consolida.js?v=89"></script>
+<script src="dashboard.js?v=89"></script>
+<script src="financeiro.js?v=89"></script>
+<script src="daterange.js?v=89"></script>
+<script src="inicio.js?v=89"></script>
+<script src="planilha.js?v=89"></script>
+<script src="precificacao-planilha.js?v=89"></script>
+<script src="tiny.js?v=89"></script>
+<script src="despesas.js?v=89"></script>
+<script src="assistente.js?v=89"></script>
 </body>
 </html>

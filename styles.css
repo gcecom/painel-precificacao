@@ -367,3 +367,143 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
 .ai-form .btn{min-height:40px}
 @media(max-width:520px){#aiPanel{width:94vw;height:76vh;right:-6px}}
 @media print{#aiWidget{display:none!important}}
+
+/* ================================================================================
+   MELHORIAS DE NAVEGAÇÃO E RESPONSIVIDADE MOBILE (≤768px)
+   Bloco 100% aditivo, ao final do arquivo: nada acima foi alterado. Fora das faixas
+   de largura abaixo, o desktop permanece pixel a pixel igual. Não muda cálculo,
+   banco de dados nem regra de negócio — só layout, navegação e componentes visuais.
+   ================================================================================ */
+/* padrão = desktop: novos componentes ficam ocultos; a media query ≤768px abaixo
+   reativa cada um (mesma especificidade, vem depois → vence só dentro da faixa mobile) */
+.bottom-nav,.more-sheet,.fm-trigger,.fm-sheet{display:none}
+
+@media(max-width:768px){
+  /* ---- 5) cabeçalho compacto e fixo; tema/usuário/sair saem p/ o painel "Mais" ---- */
+  .topbar{position:fixed;top:0;left:0;right:0;z-index:40;background:var(--panel);
+    margin:0;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;
+    border-bottom:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.06);
+    flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important}
+  .topbar h1{order:0;flex:1 1 auto;font-size:15px;margin:0}
+  .app{padding-top:calc(58px + env(safe-area-inset-top,0px))}
+  .topbar .theme-toggle,.topbar .top-user,.topbar #logoutBtn{display:none!important}
+  .topbar .top-actions{width:auto;flex:0 0 auto;gap:6px}
+
+  /* ---- 1) gaveta lateral: já existe em @media(max-width:900px) acima (900>768),
+     fundo escurecido e fechamento por toque fora também — nada a acrescentar aqui. */
+
+  /* ---- 2/3/4) barra inferior fixa + destaque da página ativa ---- */
+  .bottom-nav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;
+    background:var(--panel);border-top:1px solid var(--line);
+    padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px))}
+  .bn-item{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:800;
+    min-height:52px;padding:4px 2px;border-radius:10px;cursor:pointer}
+  .bn-item svg{width:20px;height:20px}
+  .bn-item.active{color:var(--accent)}
+  .app{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+
+  /* ---- painel "Mais" ---- */
+  .more-sheet.hidden{display:none}
+  .more-sheet{display:block;position:fixed;inset:0;z-index:65}
+  .more-scrim{position:absolute;inset:0;background:rgba(0,0,0,.42)}
+  .more-panel{position:absolute;left:0;right:0;bottom:0;background:var(--panel);
+    border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.22);
+    max-height:82vh;overflow:auto;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .more-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .more-head b{font-size:15px;color:var(--heading)}
+  .more-close{border:0;background:var(--soft);color:var(--muted);border-radius:10px;
+    width:36px;height:36px;font-size:15px;cursor:pointer}
+  .more-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .more-item{border:1px solid var(--line);background:var(--control);color:var(--text);
+    border-radius:12px;padding:14px 10px;font-weight:800;font-size:13px;min-height:48px;
+    cursor:pointer;text-align:left}
+  .more-divider{height:1px;background:var(--line);margin:14px 0}
+  .more-account{display:grid;gap:10px}
+  .more-account .theme-toggle{width:100%;order:0}
+  .more-account .theme-option{min-width:0}
+  .more-user{font-size:12px;color:var(--muted);font-weight:700}
+  body.more-open{overflow:hidden}
+
+  /* ---- 6) cards em coluna única, sem cortar valor ---- */
+  .kpis{grid-template-columns:1fr!important}
+  .kpi .value{white-space:normal;word-break:break-word;font-size:20px}
+
+  /* ---- 7) formulários em coluna única, campo com largura total, fonte ≥16px ---- */
+  .fields,.results,.catalog-tools,.perf-uploads,.business,.summary-grid,
+  .ads-summary-form,.sim-inputs,.scenario-controls{grid-template-columns:1fr!important}
+  .field.full{grid-column:auto}
+  input,select,textarea{font-size:16px} /* evita zoom automático ao focar campo no iOS */
+
+  /* ---- 13) botões tocáveis ≥44px ---- */
+  button,.btn,.chip,.side-item,.bn-item,select,.field input,.field select{min-height:44px}
+  .btn.small{min-height:40px} /* ações dentro de tabela/lista continuam compactas, mas tocáveis */
+
+  /* ---- 9) tabelas: Produto/SKU sempre visível, rolagem só dentro da tabela ---- */
+  .table-wrap table th:first-child,.table-wrap table td:first-child{
+    position:sticky;left:0;z-index:1;background:var(--panel)}
+  .table-wrap table th:first-child{z-index:2;background:var(--table-head)}
+  .monthly-table td.mo-name{background:var(--panel)}
+
+  /* ---- 9) cartões p/ tabelas de leitura (Dashboard/Produtos) — tabelas-mobile.js ---- */
+  .mc-cards{display:grid;gap:10px}
+  .mc-card{border:1px solid var(--line);border-radius:12px;background:var(--panel2);
+    padding:12px;display:grid;gap:8px}
+  .mc-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .mc-card-name{color:var(--heading);font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .mc-toggle{border:0;background:transparent;color:var(--accent);font-weight:800;font-size:12px;
+    padding:6px 4px;cursor:pointer;flex:0 0 auto;min-height:32px}
+  .mc-card-body{display:grid;gap:6px;padding-top:6px;border-top:1px dashed var(--line)}
+  .mc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+  .mc-row span{color:var(--muted)}
+  .mc-row b{color:var(--heading);text-align:right}
+
+  /* ---- 8) filtros em painel inferior + chips — filtro-mobile.js ---- */
+  .fm-trigger{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .fm-btn{white-space:nowrap}
+  .fm-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .fm-chip{background:var(--soft);border-color:transparent;cursor:default}
+  .fm-sheet.hidden{display:none}
+  .fm-sheet{display:block;position:fixed;inset:0;z-index:65}
+  .fm-scrim{position:absolute;inset:0;background:rgba(0,0,0,.42)}
+  .fm-panel{position:absolute;left:0;right:0;bottom:0;background:var(--panel);
+    border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.22);
+    max-height:82vh;display:flex;flex-direction:column}
+  .fm-head{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;border-bottom:1px solid var(--line)}
+  .fm-head b{font-size:15px;color:var(--heading)}
+  .fm-close{border:0;background:var(--soft);color:var(--muted);border-radius:10px;
+    width:36px;height:36px;font-size:15px;cursor:pointer}
+  .fm-body{padding:14px 16px;overflow:auto;display:grid;gap:12px}
+  .fm-body .field{max-width:100%;margin:0}
+  .fm-foot{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+  .fm-foot .btn{width:100%}
+  body.fm-open{overflow:hidden}
+
+  /* ---- 10) gráficos responsivos + rolagem horizontal de segurança ---- */
+  .dash-chart .panel-body{overflow-x:auto}
+  .ct-tip{position:fixed;z-index:130;background:var(--heading);color:var(--panel);
+    font-size:12px;font-weight:700;padding:6px 10px;border-radius:8px;pointer-events:none;
+    box-shadow:0 6px 18px rgba(0,0,0,.28);max-width:80vw}
+  .ct-tip[hidden]{display:none}
+
+  /* ---- 11) modais e Assistente em tela cheia ---- */
+  .modal-content{width:100%;height:100%;max-width:100%;max-height:100%;border-radius:0;
+    display:flex;flex-direction:column;overflow-y:auto}
+  #aiPanel{position:fixed;inset:0;width:100%;height:100%;border-radius:0}
+
+  /* ---- 12) FAB do Assistente não cobre a barra inferior ---- */
+  #aiWidget{right:14px;bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+
+  /* ---- 14) sem rolagem horizontal da página ---- */
+  html,body{overflow-x:hidden}
+}
+
+@media(max-width:390px){
+  .chan-pick span{display:none} /* some só o rótulo "Canal"; o seletor continua — mais espaço p/ o título */
+  .more-grid{grid-template-columns:1fr}
+}
+
+@media print{
+  .bottom-nav,.more-sheet,.fm-trigger,.fm-sheet,.mc-cards,.ct-tip{display:none!important}
+}

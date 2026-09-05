@@ -38,6 +38,13 @@ function go(mod,opts){
   const view=btn.dataset.view;
   VIEWS.forEach(v=>{const e=el(v);if(e)e.classList.toggle('hidden',v!==view)});
   items().forEach(b=>{const on=b.dataset.module===mod;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'page':'false')});
+  // Barra inferior (celular): destaca o item direto OU "Mais" quando o módulo atual
+  // está dentro do painel "Mais" (Precificação, Produtos, Anúncios, Financeiro, Despesas, Config).
+  const BN_DIRECT={inicio:1,dash:1,vendas:1,estoque:1};
+  document.querySelectorAll('.bn-item[data-bn]').forEach(b=>{
+    const on=BN_DIRECT[mod]?b.dataset.bn===mod:b.dataset.bn==='mais';
+    b.classList.toggle('active',on);b.setAttribute('aria-current',on?'page':'false');
+  });
   const t=el('pageTitle');
   if(t){
     const base=btn.dataset.title||btn.textContent.trim();
@@ -47,6 +54,7 @@ function go(mod,opts){
   }
   syncChannelUI(mod);
   closeDrawer();
+  closeMore();
   try{localStorage.setItem('painel_modulo',mod)}catch(e){}
   // dispara o render da tela correspondente
   const map={dashboardView:'dash',monthlyView:'monthly',pricingView:'pricing',performanceView:'perf'};
@@ -69,14 +77,41 @@ function setCollapsed(on){
 function openDrawer(){document.body.classList.add('nav-open');const s=el('navScrim');if(s)s.hidden=false}
 function closeDrawer(){document.body.classList.remove('nav-open');const s=el('navScrim');if(s)s.hidden=true}
 
+// ---------- painel "Mais" (barra inferior, celular) ----------
+// Abre os módulos que não cabem na barra inferior + tema/usuário/sair (movidos do
+// cabeçalho no celular). Não duplica lógica: os botões de tema aqui usam o MESMO
+// atributo data-theme-choice que o cabeçalho — app.js já sincroniza os dois.
+function openMore(){
+  const s=el('moreSheet');if(!s)return;
+  s.classList.remove('hidden');
+  document.body.classList.add('more-open');
+  const btn=el('bnMore');if(btn)btn.setAttribute('aria-expanded','true');
+}
+function closeMore(){
+  const s=el('moreSheet');if(!s)return;
+  s.classList.add('hidden');
+  document.body.classList.remove('more-open');
+  const btn=el('bnMore');if(btn)btn.setAttribute('aria-expanded','false');
+}
+
 // ---------- eventos ----------
 items().forEach(b=>b.onclick=()=>go(b.dataset.module));
 if(el('navToggle'))el('navToggle').onclick=()=>setCollapsed(!document.body.classList.contains('nav-collapsed'));
 if(el('navBurger'))el('navBurger').onclick=()=>document.body.classList.contains('nav-open')?closeDrawer():openDrawer();
 if(el('navScrim'))el('navScrim').onclick=closeDrawer;
+// Barra inferior: os 4 atalhos diretos navegam; "Mais" abre o painel com o resto dos
+// módulos. O painel usa os MESMOS módulos/telas do menu lateral — nenhuma view nova.
+document.querySelectorAll('.bn-item[data-bn]').forEach(b=>{
+  b.onclick=()=>{if(b.dataset.bn==='mais')(el('moreSheet')&&el('moreSheet').classList.contains('hidden'))?openMore():closeMore();else go(b.dataset.bn)};
+});
+document.querySelectorAll('.more-item[data-module]').forEach(b=>b.onclick=()=>go(b.dataset.module));
+if(el('moreScrim'))el('moreScrim').onclick=closeMore;
+if(el('moreClose'))el('moreClose').onclick=closeMore;
+// Sair do painel "Mais" aciona o mesmo botão do cabeçalho (mesmo padrão de proxy usado abaixo)
+if(el('moreLogout')&&el('logoutBtn'))el('moreLogout').onclick=()=>el('logoutBtn').click();
 // Raio do cabeçalho e da barra lateral levam ao Início (navegação client-side)
 ['sideBolt','topBolt'].forEach(idb=>{const b=el(idb);if(b)b.onclick=()=>go('inicio')});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();closeMore()}});
 
 if(el('platformSelect'))el('platformSelect').onchange=()=>{
   const v=el('platformSelect').value;
@@ -93,7 +128,10 @@ const proxy=(from,to)=>{const a=el(from),b=el(to);if(a&&b)a.onclick=()=>b.click(
 proxy('cfgExport','exportBtn');proxy('cfgImport','importBtn');proxy('cfgPrint','printBtn');
 
 // mostra o e-mail do usuário no topo quando a sessão carrega
-window.navSetUser=email=>{const u=el('topUser');if(u){u.textContent=email?email.split('@')[0]:'';u.title=email||''}};
+window.navSetUser=email=>{
+  const u=el('topUser');if(u){u.textContent=email?email.split('@')[0]:'';u.title=email||''}
+  const m=el('moreUser');if(m)m.textContent=email?('Conectado como '+email):'';
+};
 
 window.navigateTo=go;
 window.navCurrentModule=()=>current;
