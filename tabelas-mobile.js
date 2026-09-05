@@ -9,7 +9,7 @@
 // e monta cartões ao lado. Um MutationObserver mantém os cartões sincronizados sempre
 // que a página redesenha a tabela — sem exigir nenhuma mudança em dashboard.js/produtos.js.
 (function(){
-const IDS=['dashTablePlatform','dashTableProduct','dashTableMonth','prodTable'];
+const IDS=['dashTablePlatform','dashTableProduct','dashTableMonth','prodTable','finDre','monthlyCompare'];
 const mq=window.matchMedia('(max-width:768px)');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 

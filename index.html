@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=89">
+<link rel="stylesheet" href="styles.css?v=90">
 </head>
 <body>
 <div class="app-shell">
@@ -58,6 +58,8 @@
   </div>
 </header>
 
+<div class="cq-chips hidden" id="cqChips" role="group" aria-label="Marketplace"></div>
+
 <nav class="bottom-nav" id="bottomNav" aria-label="Navegação principal">
   <button class="bn-item" type="button" data-bn="inicio"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="bn-txt">Início</span></button>
   <button class="bn-item" type="button" data-bn="dash"><span class="bn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span><span class="bn-txt">Dashboard</span></button>
@@ -91,7 +93,7 @@
 </div>
 
 <section class="grid-main" id="pricingView">
-<section class="panel" style="grid-column:1/-1">
+<section class="panel" id="priBulkPanel" style="grid-column:1/-1">
   <div class="panel-head"><h2>Importação em massa da precificação</h2><span class="status neutral" id="priImpStatus">Pronto</span></div>
   <div class="panel-body">
     <div class="monthly-toolbar" style="margin:0">
@@ -189,6 +191,12 @@
 
 <section id="monthlyView" class="content hidden">
 <div class="overview"><h2 id="monthlyTitle">Resultado mensal — Mercado Livre</h2><p>Lance as <b>unidades vendidas</b> e o <b>preço médio</b> de cada produto no mês. O painel calcula receita, comissão, taxas, imposto, lucro e margem usando os custos cadastrados. Troque o marketplace na barra superior.</p></div>
+<div class="cq-month hidden" id="cqMonthVendas" data-input="monthlyMonth" data-picker="monthlyMonthPicker">
+  <button type="button" class="cq-mo-nav" data-step="-1" aria-label="Mês anterior">‹</button>
+  <button type="button" class="cq-mo-label" aria-label="Escolher mês">—</button>
+  <button type="button" class="cq-mo-nav" data-step="1" aria-label="Próximo mês">›</button>
+</div>
+<details class="cq-acc" id="moEdit" open><summary>Editar dados</summary>
 <div class="monthly-toolbar">
   <div class="field"><label>Mês de referência</label><div id="monthlyMonthPicker" class="dp-host"></div><input id="monthlyMonth" type="month" hidden><div class="help" id="monthlyMonthHint">Cada mês fica salvo separadamente</div></div>
   <div class="field"><label>Gasto total com Ads do mês (R$)</label><input id="monthlyAdsSpend" type="number" min="0" step="0.01" placeholder="0,00"><div class="help">Valor real gasto nesta plataforma no mês selecionado</div></div>
@@ -202,13 +210,14 @@
       <input type="file" id="plFile" accept=".xlsx,.xls,.csv" hidden>
     </span><button class="btn primary" id="monthlySave">Salvar mês</button><button class="btn" id="monthlyRecalc" title="Regrava as taxas congeladas deste mês com a configuração atual de Produtos e Precificação. Pede confirmação — altera um resultado histórico.">Recalcular mês</button><button class="btn" id="monthlyPrint">Imprimir</button><button class="btn danger" id="monthlyClear">Zerar este mês neste marketplace</button></div>
 </div>
+</details>
 <div class="monthly-months" id="monthlyMonthList"></div>
-<div class="mo-block-title">1. Resumo do mês</div>
+<div class="mo-block-title" id="moT1">1. Resumo do mês</div>
 <section class="kpis" id="monthlyKpis"></section>
-<div class="mo-block-title">2. Produtos vendidos</div>
-<section class="panel"><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyTable"></table></div></div></section>
-<div class="mo-block-title">3. Comparação e diagnóstico</div>
-<section class="panel"><div class="panel-head"><h2>Mês anterior</h2><span class="status neutral" id="monthlyCompareStatus">Sem base de comparação</span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyCompare"></table></div></div></section>
+<div class="mo-block-title" id="moT2">2. Produtos vendidos</div>
+<section class="panel" id="moPanelProdutos"><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyTable"></table></div></div></section>
+<div class="mo-block-title" id="moT3">3. Comparação e diagnóstico</div>
+<section class="panel" id="moPanelCompare"><div class="panel-head"><h2>Mês anterior</h2><span class="status neutral" id="monthlyCompareStatus">Sem base de comparação</span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="monthlyCompare"></table></div></div></section>
 </section>
 
 <section id="inicioView" class="content hidden">
@@ -252,7 +261,7 @@
 
 <section id="produtosView" class="content hidden">
 <div class="overview"><h2>Cadastro central de produtos</h2><p>Fonte única de nome, SKU, categoria, custo e preço padrão. Os demais módulos leem daqui.</p></div>
-<section class="panel">
+<section class="panel" id="prodBulkPanel">
   <div class="panel-head"><h2>Cadastro em massa</h2><span class="status neutral" id="pcImpStatus">Pronto</span></div>
   <div class="panel-body">
     <div class="monthly-toolbar" style="margin:0">
@@ -271,7 +280,7 @@
   <div class="field"><label>Status</label><select id="prodFilterStatus"><option value="">Todos</option><option value="1">Ativos</option><option value="0">Inativos</option></select></div>
   <div class="dash-filter-actions"><button class="btn primary" id="prodNew">Novo produto</button></div>
 </div>
-<section class="panel"><div class="panel-head"><h2 id="prodFormTitle">Editar produto</h2><span class="status neutral" id="prodStatus">Selecione um produto</span></div><div class="panel-body">
+<section class="panel" id="prodFormPanel"><div class="panel-head"><h2 id="prodFormTitle">Editar produto</h2><span class="status neutral" id="prodStatus">Selecione um produto</span></div><div class="panel-body">
   <div class="fields">
     <div class="field full"><label>Nome do produto</label><input id="pcName"></div>
     <div class="field"><label>SKU (identificador comercial)</label><input id="pcSku"></div>
@@ -287,7 +296,7 @@
   <div class="ad-links" id="pcAdLinks"></div>
   <div class="form-actions"><button class="btn primary" id="pcSave">Salvar produto</button><button class="btn" id="pcToggle">Ativar / desativar</button><button class="btn danger" id="pcDelete">Excluir</button></div>
 </div></section>
-<section class="panel"><div class="panel-head"><h2>Produtos cadastrados</h2><span class="status neutral" id="prodCount"></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="prodTable"></table></div></div></section>
+<section class="panel" id="prodListPanel"><div class="panel-head"><h2>Produtos cadastrados</h2><span class="status neutral" id="prodCount"></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="prodTable"></table></div></div></section>
 </section>
 
 <section id="estoqueView" class="content hidden">
@@ -330,7 +339,7 @@
 
 <section class="kpis" id="dpKpis"></section>
 
-<section class="panel"><div class="panel-head"><h2 id="dpFormTitle">Nova despesa</h2><span class="status neutral" id="dpFormStatus">Preencha e salve</span></div><div class="panel-body">
+<section class="panel" id="dpFormPanel"><div class="panel-head"><h2 id="dpFormTitle">Nova despesa</h2><span class="status neutral" id="dpFormStatus">Preencha e salve</span></div><div class="panel-body">
   <div class="fields">
     <div class="field full"><label>Descrição *</label><input id="dpDesc" maxlength="160" placeholder="Ex.: Conta de energia — julho"></div>
     <div class="field"><label>Categoria *</label><select id="dpCat"></select></div>
@@ -355,7 +364,7 @@
 </div>
 <div class="help" id="dpMsg">&nbsp;</div>
 
-<section class="panel"><div class="panel-head"><h2>Lançamentos</h2><span class="status neutral" id="dpCount">—</span></div><div class="panel-body">
+<section class="panel" id="dpListPanel"><div class="panel-head"><h2>Lançamentos</h2><span class="status neutral" id="dpCount">—</span></div><div class="panel-body">
   <div class="table-wrap dp-table-wrap"><table class="monthly-table dp-table" id="dpTable"></table></div>
   <div class="dp-cards" id="dpCards"></div>
 </div></section>
@@ -364,7 +373,7 @@
 <section id="configView" class="content hidden">
 <div class="overview"><h2>Configurações</h2><p>Conta, aparência e dados.</p></div>
 <section class="panel"><div class="panel-head"><h2>Conta</h2></div><div class="panel-body"><p class="help" id="cfgUser"></p></div></section>
-<section class="panel"><div class="panel-head"><h2>Dados e backup</h2></div><div class="panel-body"><div class="form-actions"><button class="btn" id="cfgExport">Exportar dados (JSON)</button><button class="btn" id="cfgImport">Importar dados (JSON)</button><button class="btn" id="cfgPrint">Imprimir tela atual</button></div></div></section>
+<section class="panel" id="cfgBackupPanel"><div class="panel-head"><h2>Dados e backup</h2></div><div class="panel-body"><div class="form-actions"><button class="btn" id="cfgExport">Exportar dados (JSON)</button><button class="btn" id="cfgImport">Importar dados (JSON)</button><button class="btn" id="cfgPrint">Imprimir tela atual</button></div></div></section>
 <section class="panel"><div class="panel-head"><h2>Perfis de acesso</h2></div><div class="panel-body"><p class="help">Administrador, Financeiro, Comercial, Estoque e Consulta serão configuráveis em etapa futura. Hoje todo login autenticado tem acesso completo aos próprios dados (isolados por RLS).</p></div></section>
 </section>
 </main>
@@ -472,26 +481,27 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=89"></script>
-<script src="app.js?v=89"></script>
+<script src="supabase.js?v=90"></script>
+<script src="app.js?v=90"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=89"></script>
-<script src="nav.js?v=89"></script>
-<script src="tabelas-mobile.js?v=89"></script>
-<script src="filtro-mobile.js?v=89"></script>
-<script src="chart-touch.js?v=89"></script>
-<script src="produtos.js?v=89"></script>
-<script src="produtos-planilha.js?v=89"></script>
-<script src="estoque.js?v=89"></script>
-<script src="consolida.js?v=89"></script>
-<script src="dashboard.js?v=89"></script>
-<script src="financeiro.js?v=89"></script>
-<script src="daterange.js?v=89"></script>
-<script src="inicio.js?v=89"></script>
-<script src="planilha.js?v=89"></script>
-<script src="precificacao-planilha.js?v=89"></script>
-<script src="tiny.js?v=89"></script>
-<script src="despesas.js?v=89"></script>
-<script src="assistente.js?v=89"></script>
+<script src="performance.js?v=90"></script>
+<script src="nav.js?v=90"></script>
+<script src="tabelas-mobile.js?v=90"></script>
+<script src="filtro-mobile.js?v=90"></script>
+<script src="chart-touch.js?v=90"></script>
+<script src="consulta-mobile.js?v=90"></script>
+<script src="produtos.js?v=90"></script>
+<script src="produtos-planilha.js?v=90"></script>
+<script src="estoque.js?v=90"></script>
+<script src="consolida.js?v=90"></script>
+<script src="dashboard.js?v=90"></script>
+<script src="financeiro.js?v=90"></script>
+<script src="daterange.js?v=90"></script>
+<script src="inicio.js?v=90"></script>
+<script src="planilha.js?v=90"></script>
+<script src="precificacao-planilha.js?v=90"></script>
+<script src="tiny.js?v=90"></script>
+<script src="despesas.js?v=90"></script>
+<script src="assistente.js?v=90"></script>
 </body>
 </html>

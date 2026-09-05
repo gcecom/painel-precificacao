@@ -30,6 +30,8 @@ function syncChannelUI(mod){
   const todos=sel.querySelector('option[value=""]');
   if(todos)todos.disabled=!!NEEDS_CHANNEL[mod];
   if(NEEDS_CHANNEL[mod]&&!sel.value){sel.value=lastChannel;applyPlatform(lastChannel)}
+  // chips de marketplace do celular seguem a mesma regra deste seletor (consulta-mobile.js)
+  try{if(typeof window.cqSyncChips==='function')window.cqSyncChips()}catch(e){}
 }
 
 function go(mod,opts){

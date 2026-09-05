@@ -507,3 +507,89 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
 @media print{
   .bottom-nav,.more-sheet,.fm-trigger,.fm-sheet,.mc-cards,.ct-tip{display:none!important}
 }
+
+/* ================================================================================
+   MODO CONSULTA NO CELULAR (≤768px) — dados primeiro, edição por último.
+   Aditivo, ao final do arquivo. A reordenação usa `order` (as views já são grid),
+   então nenhum elemento muda de lugar no DOM e nenhum evento é afetado.
+   ================================================================================ */
+/* padrão = desktop: os componentes novos não existem */
+.cq-chips,.cq-month{display:none}
+.cq-acc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;
+  justify-content:space-between;gap:8px;min-height:44px;padding:11px 2px;font-weight:900;
+  font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--heading)}
+.cq-acc>summary::-webkit-details-marker{display:none}
+.cq-acc>summary::after{content:'▾';color:var(--muted);transition:transform .2s}
+.cq-acc[open]>summary::after{transform:rotate(180deg)}
+/* "Editar dados": no desktop o cabeçalho some e o conteúdo fica sempre visível (mesmo
+   padrão dos acordeões .acc da Precificação). Precisa vir DEPOIS da regra base acima:
+   mesma especificidade, quem vem por último vence dentro da faixa de largura. */
+@media(min-width:769px){
+  .cq-acc>summary{display:none}
+  .cq-acc>*:not(summary){content-visibility:visible!important}
+}
+
+@media(max-width:768px){
+  /* ---- 4) sem textos explicativos longos (o título da página já está no cabeçalho) ---- */
+  .overview p:not(.ini-frase){display:none}
+  /* títulos que só repetem o cabeçalho fixo / os chips / o seletor de mês */
+  #monthlyView>.overview,#dashboardView>.overview,#produtosView>.overview,
+  #estoqueView>.overview,#financeiroView>.overview,#despesasView>.overview,
+  #configView>.overview{display:none}
+
+  /* ---- 3) marketplaces como chips horizontais ---- */
+  .cq-chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px;margin:0 0 4px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .cq-chips::-webkit-scrollbar{display:none}
+  .cq-chips.hidden{display:none}
+  .cq-chip{white-space:nowrap;flex:0 0 auto;min-height:38px;font-size:12px}
+  .cq-chip.on{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  .cq-chip[disabled]{display:none} /* "Todos" não vale nas telas por canal — não ocupa espaço */
+
+  /* ---- 2) seletor compacto de mês  ‹ 01/2026 › ---- */
+  .cq-month{display:flex;align-items:center;gap:6px;margin:0 0 10px}
+  .cq-month.hidden{display:none}
+  .cq-mo-nav{flex:0 0 auto;width:44px;min-height:44px;border:1px solid var(--line);
+    background:var(--control);color:var(--text);border-radius:11px;font-size:20px;
+    font-weight:900;cursor:pointer;line-height:1}
+  .cq-mo-label{flex:1 1 auto;min-height:44px;border:1px solid var(--line);
+    background:var(--control);color:var(--heading);border-radius:11px;font-weight:900;
+    font-size:16px;cursor:pointer;font-variant-numeric:tabular-nums}
+
+  /* ---- 8) KPIs compactos em duas colunas ---- */
+  .kpis{grid-template-columns:1fr 1fr!important;gap:8px}
+  .kpi{padding:11px;min-height:0}
+  .kpi .label{font-size:10px}
+  .kpi .value{font-size:17px;margin:3px 0;white-space:normal;word-break:break-word}
+  .kpi .sub{font-size:9px}
+
+  /* ---- 7) importação, download de planilha e ações administrativas: só no desktop ---- */
+  #prodBulkPanel,#priBulkPanel,#cfgBackupPanel,
+  #plWrap,#tyWrap,#dashExport,#monthlyPrint,#monthlyClear,#monthlyRecalc,#exportRoas{display:none!important}
+
+  /* ---- 1 + 5) ordem: dados antes de formulários e ações ---- */
+  /* Vendas: mês/marketplace -> KPIs -> comparação -> produtos -> edição (fechada) */
+  #monthlyView>#cqMonthVendas{order:1}
+  #monthlyView>#monthlyMonthList{order:2}
+  #monthlyView>#moT1{order:3}
+  #monthlyView>#monthlyKpis{order:4}
+  #monthlyView>#moT3{order:5}
+  #monthlyView>#moPanelCompare{order:6}
+  #monthlyView>#moT2{order:7}
+  #monthlyView>#moPanelProdutos{order:8}
+  #monthlyView>#moEdit{order:9}
+  /* Produtos: lista antes do formulário de edição */
+  #produtosView>#prodListPanel{order:1}
+  #produtosView>#prodFormPanel{order:2}
+  /* Despesas: lançamentos antes do formulário de nova despesa */
+  #despesasView>#dpListPanel{order:1}
+  #despesasView>#dpFormPanel{order:2}
+  /* Dashboard: o formulário do DAS vai para o fim */
+  #dashboardView>#dashDasPanel{order:9}
+
+  /* ---- densidade: bloco vazio não ocupa espaço de grid (gap) na tela de consulta ---- */
+  .monthly-months:empty,.dash-charts:empty,.kpis:empty,.perf-diags:empty,
+  .ini-alerts:empty,.mc-cards:empty{display:none}
+}
+
+@media print{.cq-chips,.cq-month{display:none!important}.cq-acc>summary{display:none}}
