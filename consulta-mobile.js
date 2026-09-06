@@ -87,7 +87,10 @@ function montaMes(bar){
   pinta();
 }
 function sincronizaMes(){
-  document.querySelectorAll('.cq-month').forEach(bar=>{
+  // Barras com data-mirror (período de 1 mês: de = até) são do dashboard-mobile.js.
+  // Sem este recorte, os dois módulos disputavam a mesma barra e vencia quem montasse
+  // primeiro — o Dashboard ficava sem atualizar o "de", virando um período de 2 meses.
+  document.querySelectorAll('.cq-month:not([data-mirror])').forEach(bar=>{
     montaMes(bar);
     bar.classList.toggle('hidden',!mq.matches);
     const input=el(bar.dataset.input),lab=bar.querySelector('.cq-mo-label');

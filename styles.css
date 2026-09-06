@@ -593,3 +593,66 @@ html[data-theme="dark"] .dash-bar-fill{box-shadow:inset 0 0 0 1px rgba(255,255,2
 }
 
 @media print{.cq-chips,.cq-month{display:none!important}.cq-acc>summary{display:none}}
+
+/* ================================================================================
+   DASHBOARD EM MODO CONSULTA NO CELULAR (≤768px)
+   Aditivo e restrito ao #dashboardView + Assistente. Desktop e menu inferior intactos.
+   ================================================================================ */
+/* padrão = desktop: os blocos do Dashboard mobile não existem. Fica no CSS (e não só
+   no JS) para não depender do tempo do resize/observer — o desktop nunca os mostra. */
+.cq-dash,.cq-more-btn,#cqDashResumo,#cqDashChart{display:none}
+
+@media(max-width:768px){
+  /* ---- 1) barra compacta: mês + marketplace ---- */
+  .cq-dash{display:grid;gap:8px;margin:0 0 4px}
+  .cq-dash.hidden{display:none}
+  .cq-dash .cq-month{display:flex;margin:0}
+
+  /* ---- ordem: barra -> resumo -> gráfico -> marketplace -> "Ver detalhes" ---- */
+  #dashboardView>#cqDashBar{order:1}
+  #dashboardView>.fm-trigger{order:2}
+  #dashboardView>#cqDashResumo{order:3}
+  #dashboardView>#cqDashChart{order:4}
+  #dashboardView>#dashPlatPanel{order:5}
+  #dashboardView>#cqDashMore{order:6}
+  #dashboardView>#dashStatus{order:7}
+
+  /* ---- 2) cartão "Resumo do mês": 3 indicadores lado a lado ---- */
+  #cqDashChart{display:block}
+  #cqDashResumo{display:grid;grid-template-columns:1fr 1fr;gap:1px;padding:0;overflow:hidden;
+    background:var(--line)}
+  #cqDashResumo.hidden{display:none}
+  #cqDashResumo .kpi{border:0;border-radius:0;box-shadow:none;background:var(--panel);
+    padding:12px;min-height:0}
+  #cqDashResumo .kpi:first-child{grid-column:1/-1}
+  /* valores não podem quebrar entre o sinal e o número ("−" sozinho numa linha) */
+  #cqDashResumo .kpi .value{font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #cqDashResumo .kpi:first-child .value{font-size:24px}
+  #cqDashResumo .kpi .sub{font-size:9px}
+
+  /* ---- 5) tudo o mais fica recolhido até tocar em "Ver detalhes" ---- */
+  .cq-more-btn{display:block;width:100%}
+  .cq-more-btn.hidden{display:none}
+  #dashboardView>#dashKpis,#dashboardView>#dashCharts,#dashboardView>#dashProdPanel,
+  #dashboardView>#dashMonthPanel,#dashboardView>#dashInsightPanel,
+  #dashboardView>#dashAlertPanel,#dashboardView>#dashDasPanel{display:none}
+  #dashboardView.cq-open>#dashKpis{display:grid;order:8}
+  #dashboardView.cq-open>#dashCharts{display:grid;order:9}
+  #dashboardView.cq-open>#dashProdPanel{display:block;order:10}
+  #dashboardView.cq-open>#dashMonthPanel{display:block;order:11}
+  #dashboardView.cq-open>#dashInsightPanel{display:block;order:12}
+  #dashboardView.cq-open>#dashAlertPanel{display:block;order:13}
+  #dashboardView.cq-open>#dashDasPanel{display:block;order:14}
+
+  /* ---- "Filtrar" vira ícone compacto (só no Dashboard) ---- */
+  /* margem negativa: o ícone sobe para a linha dos chips e o gráfico ganha altura
+     útil, ajudando os KPIs + gráfico a caberem antes da primeira rolagem */
+  #dashboardView .fm-trigger{margin:-4px 0 0}
+  #dashboardView .fm-btn{width:44px;padding:0;font-size:0;line-height:0;overflow:hidden}
+  #dashboardView .fm-btn::after{content:'🔎';font-size:17px;line-height:1}
+
+  /* ---- Assistente sai da tela e vai para o painel "Mais" ---- */
+  #aiWidget{display:none}
+}
+
+@media print{.cq-dash,.cq-more-btn{display:none!important}}

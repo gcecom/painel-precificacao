@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=1">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('painel_tema_2026')==='dark'?'dark':'light'}catch{document.documentElement.dataset.theme='light'}</script>
-<link rel="stylesheet" href="styles.css?v=90">
+<link rel="stylesheet" href="styles.css?v=94">
 </head>
 <body>
 <div class="app-shell">
@@ -79,6 +79,7 @@
       <button class="more-item" type="button" data-module="financeiro">Financeiro</button>
       <button class="more-item" type="button" data-module="despesas">Despesas</button>
       <button class="more-item" type="button" data-module="config">Configurações</button>
+      <button class="more-item" type="button" id="moreAssistente">Assistente</button>
     </div>
     <div class="more-divider"></div>
     <div class="more-account">
@@ -241,6 +242,17 @@
   <div class="field"><label>Produto</label><select id="dashProduct"><option value="">Todos</option></select></div>
   <div class="dash-filter-actions"><button class="btn" id="dashReload">Atualizar</button><button class="btn" id="dashExport">Exportar CSV</button></div>
 </div>
+<div class="cq-dash hidden" id="cqDashBar">
+  <div class="cq-month" id="cqMonthDash" data-input="dashTo" data-mirror="dashFrom" data-picker="dashPeriod">
+    <button type="button" class="cq-mo-nav" data-step="-1" aria-label="Mês anterior">‹</button>
+    <button type="button" class="cq-mo-label" aria-label="Escolher mês">—</button>
+    <button type="button" class="cq-mo-nav" data-step="1" aria-label="Próximo mês">›</button>
+  </div>
+  <div class="cq-chips" id="cqDashPlats" role="group" aria-label="Marketplace"></div>
+</div>
+<section class="panel kpis hidden" id="cqDashResumo" aria-label="Resumo do mês"></section>
+<section class="panel hidden" id="cqDashChart"><div class="panel-head"><h2>Faturamento e lucro — 12 meses</h2><span class="status neutral" id="cqDashChartStatus">—</span></div><div class="panel-body"><div id="cqDashChartBox"></div></div></section>
+<button type="button" class="btn cq-more-btn hidden" id="cqDashMore">Ver detalhes</button>
 <div class="help" id="dashStatus">Carregando…</div>
 <section class="panel" id="dashDasPanel"><div class="panel-head"><h2>DAS pago no mês</h2></div><div class="panel-body">
   <div class="dash-filters">
@@ -252,11 +264,11 @@
 </div></section>
 <section class="kpis" id="dashKpis"></section>
 <div class="dash-charts" id="dashCharts"></div>
-<section class="panel"><div class="panel-head"><h2>Resumo por marketplace</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTablePlatform"></table></div></div></section>
-<section class="panel"><div class="panel-head"><h2>Resumo por produto</h2><span class="status neutral"><button type="button" class="btn small" id="dashToggleProducts">Ver todos</button></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableProduct"></table></div></div></section>
-<section class="panel"><div class="panel-head"><h2>Comparação mensal</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableMonth"></table></div></div></section>
-<section class="panel"><div class="panel-head"><h2>Insights do negócio</h2><span class="status neutral" id="dashInsightStatus">Regras automáticas</span></div><div class="panel-body perf-diags" id="dashInsights"></div></section>
-<section class="panel"><div class="panel-head"><h2>Atenção necessária</h2><span class="status neutral" id="dashAlertStatus">Regras automáticas</span></div><div class="panel-body perf-diags" id="dashAlerts"></div></section>
+<section class="panel" id="dashPlatPanel"><div class="panel-head"><h2>Resumo por marketplace</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTablePlatform"></table></div></div></section>
+<section class="panel" id="dashProdPanel"><div class="panel-head"><h2>Resumo por produto</h2><span class="status neutral"><button type="button" class="btn small" id="dashToggleProducts">Ver todos</button></span></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableProduct"></table></div></div></section>
+<section class="panel" id="dashMonthPanel"><div class="panel-head"><h2>Comparação mensal</h2></div><div class="panel-body"><div class="table-wrap"><table class="monthly-table" id="dashTableMonth"></table></div></div></section>
+<section class="panel" id="dashInsightPanel"><div class="panel-head"><h2>Insights do negócio</h2><span class="status neutral" id="dashInsightStatus">Regras automáticas</span></div><div class="panel-body perf-diags" id="dashInsights"></div></section>
+<section class="panel" id="dashAlertPanel"><div class="panel-head"><h2>Atenção necessária</h2><span class="status neutral" id="dashAlertStatus">Regras automáticas</span></div><div class="panel-body perf-diags" id="dashAlerts"></div></section>
 </section>
 
 <section id="produtosView" class="content hidden">
@@ -481,27 +493,28 @@
     <div class="form-actions pl-actions"><button class="btn primary" id="plConfirm">Importar</button><button class="btn" id="plCancel">Cancelar</button></div>
   </div>
 </div>
-<script src="supabase.js?v=90"></script>
-<script src="app.js?v=90"></script>
+<script src="supabase.js?v=94"></script>
+<script src="app.js?v=94"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-<script src="performance.js?v=90"></script>
-<script src="nav.js?v=90"></script>
-<script src="tabelas-mobile.js?v=90"></script>
-<script src="filtro-mobile.js?v=90"></script>
-<script src="chart-touch.js?v=90"></script>
-<script src="consulta-mobile.js?v=90"></script>
-<script src="produtos.js?v=90"></script>
-<script src="produtos-planilha.js?v=90"></script>
-<script src="estoque.js?v=90"></script>
-<script src="consolida.js?v=90"></script>
-<script src="dashboard.js?v=90"></script>
-<script src="financeiro.js?v=90"></script>
-<script src="daterange.js?v=90"></script>
-<script src="inicio.js?v=90"></script>
-<script src="planilha.js?v=90"></script>
-<script src="precificacao-planilha.js?v=90"></script>
-<script src="tiny.js?v=90"></script>
-<script src="despesas.js?v=90"></script>
-<script src="assistente.js?v=90"></script>
+<script src="performance.js?v=94"></script>
+<script src="nav.js?v=94"></script>
+<script src="tabelas-mobile.js?v=94"></script>
+<script src="filtro-mobile.js?v=94"></script>
+<script src="chart-touch.js?v=94"></script>
+<script src="consulta-mobile.js?v=94"></script>
+<script src="dashboard-mobile.js?v=94"></script>
+<script src="produtos.js?v=94"></script>
+<script src="produtos-planilha.js?v=94"></script>
+<script src="estoque.js?v=94"></script>
+<script src="consolida.js?v=94"></script>
+<script src="dashboard.js?v=94"></script>
+<script src="financeiro.js?v=94"></script>
+<script src="daterange.js?v=94"></script>
+<script src="inicio.js?v=94"></script>
+<script src="planilha.js?v=94"></script>
+<script src="precificacao-planilha.js?v=94"></script>
+<script src="tiny.js?v=94"></script>
+<script src="despesas.js?v=94"></script>
+<script src="assistente.js?v=94"></script>
 </body>
 </html>

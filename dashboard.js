@@ -29,6 +29,7 @@ let aggPrev=null;          // agregacao do periodo anterior (comparacao dos card
 let stock=null;            // snapshot vindo do modulo Estoque (window.stockSnapshot)
 let agg=null;              // resultado da última agregação (não recalcula a cada render)
 let showAllProducts=false;
+let mobilePlat='';   // só o celular altera (chips de marketplace); no desktop fica ''
 let loading=false;
 
 // ---------- período ----------
@@ -339,6 +340,11 @@ function aplicarOlhoLucro(boxId,label){
 }
 
 const STK_LOCS=[['general','Geral'],['ml_full','Full ML'],['amazon_full','Full Amazon'],['magalu_full','Full Magalu']];
+function rotuloPeriodo(){
+  const f=el('dashFrom')&&el('dashFrom').value,t=el('dashTo')&&el('dashTo').value;
+  if(!f||!t)return'';
+  return f===t?monthLabel(f):(monthLabel(f)+' a '+monthLabel(t));
+}
 function renderKpis(a){
   const t=a.total,P=aggPrev;
   const st=stock;
@@ -367,6 +373,9 @@ function renderKpis(a){
     kpi('Valor potencial de venda',st?fmtMoney(st.potential):'—',st?'Preço × quantidade total':'Abra a aba Estoque')+
     kpi('Produtos com estoque baixo',st?fmtInt(st.low):'—',st?(st.out?fmtInt(st.out)+' sem estoque':'Nenhum sem estoque'):'Abra a aba Estoque');
   aplicarOlhoLucro();
+  // Números do resumo do celular (dashboard-mobile.js). São os MESMOS já calculados
+  // acima — só ficam acessíveis sem precisar reler o card, que o olho deixa mascarado.
+  window.__dashResumo={rev:a.total.rev,liquido:a.liquido,units:a.total.units,periodo:rotuloPeriodo()};
 }
 
 // ---------- tabelas ----------
@@ -449,7 +458,11 @@ async function renderDashboard(force){
     const union=prev.concat(months);
     if(force||!raw||raw._months!==union.join(','))
       { await loadRaw(union); raw._months=union.join(','); }
-    const fP='',fPr=el('dashProduct').value,fC=el('dashCategory').value; // Dashboard sempre consolida todos os marketplaces
+    // Dashboard consolida TODOS os marketplaces por padrão (fP=''), como sempre. No
+    // celular o usuário pode escolher um marketplace nos chips: isso só preenche o
+    // filtro fPlat que a consolidação (consolida.js) já aceita — nenhuma fórmula muda,
+    // e no desktop mobilePlat continua vazio.
+    const fP=mobilePlat,fPr=el('dashProduct').value,fC=el('dashCategory').value;
     agg=aggregate(months,fP,fPr,fC);
     // comparação só existe se o período anterior tiver algum dado salvo
     const p=aggregate(prev,fP,fPr,fC);
@@ -567,6 +580,8 @@ window.PainelCharts={chartCard,emptyChart,lineChart,barChart,doughnut,CH};
 // Reutilizado pela tela Início, que tem o card "Lucro líquido" (sem o "final").
 // O estado de visível/oculto é compartilhado: esconder numa tela esconde na outra.
 window.PainelOlhoLucro=aplicarOlhoLucro;
+// Usado só pelos chips de marketplace do celular (dashboard-mobile.js).
+window.dashSetPlatform=p=>{mobilePlat=p||'';renderDashboard(true)};
 window.renderDashboard=()=>renderDashboard(false);
 window.resetDashboard=()=>{raw=null;agg=null;showAllProducts=false;const f=el('dashFrom'),t=el('dashTo');if(f)f.value='';if(t)t.value=''};
 })();
